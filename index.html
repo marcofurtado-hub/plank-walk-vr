@@ -1115,12 +1115,12 @@ function fireBullet(speed, damage, spreadRad = 0, scale = 1, flashColor = 0xffd0
   spawnMuzzleFlash(origin, scale, flashColor);
 }
 
-// SHOTGUN — 12 pellets, spread maior, dano 1 cada (parede de chumbo)
+// SHOTGUN — 18 ovos por tiro, spread maior, dano 1 cada (parede de ovo)
 function fireShotgun() {
-  for (let i = 0; i < 12; i++) fireBullet(60, 1, 0.22, 0.9, 0xffe860);
+  for (let i = 0; i < 18; i++) fireBullet(60, 1, 0.26, 0.85, 0xffe860);
   playShotgunShot();
-  pulseController(rightCtrl, 0.9, 130);
-  weaponCD = 0.42;
+  pulseController(rightCtrl, 0.95, 140);
+  weaponCD = 0.50;
 }
 
 // GATLING — 6 canos giratórios, dano 2 por bala, fire rate 0.05s
@@ -1304,17 +1304,20 @@ function makeEggProj(scale = 1) {
   return g;
 }
 
-// Throw egg from controller using its current world velocity
+// Throw egg from controller — intensidade puramente proporcional à velocidade da mão
 function throwEgg(ctrl, vel) {
   const origin = new THREE.Vector3(); ctrl.getWorldPosition(origin);
   const proj = makeEggProj(1);
   proj.position.copy(origin);
-  // Velocity = ctrl velocity * boost + small forward bias to ensure it goes outward
-  const v = vel.clone().multiplyScalar(2.4);
+  // Velocidade = velocidade da mão * 2.8 (sem bias fixo; força reflete o movimento)
+  const v = vel.clone().multiplyScalar(2.8);
+  // Pequeno bias forward apenas se a velocidade tem componente forward, pra evitar arremessos pra trás
   const fwd = new THREE.Vector3(0, 0, -1);
   const q = new THREE.Quaternion(); ctrl.getWorldQuaternion(q);
   fwd.applyQuaternion(q);
-  v.addScaledVector(fwd, 4.0);
+  // Se vel tem direção forward (>0 dot com fwd), boost ligeiro escalado pela velocidade
+  const speedMag = vel.length();
+  if (v.dot(fwd) > 0) v.addScaledVector(fwd, Math.min(2.5, speedMag * 0.5));
   proj.userData.vel = v;
   proj.userData.life = 0;
   proj.userData.damage = 1;
@@ -1324,7 +1327,7 @@ function throwEgg(ctrl, vel) {
   scene.add(proj);
   projectiles.push(proj);
   playEggThrow();
-  pulseController(ctrl, 0.5, 80);
+  pulseController(ctrl, Math.min(0.9, 0.3 + speedMag * 0.1), 80);
 }
 
 // =============================================================================
