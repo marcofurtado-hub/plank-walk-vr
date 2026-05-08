@@ -2560,13 +2560,29 @@ renderer.setAnimationLoop(() => {
   // === PROJECTILES ===
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i];
+    const prevPos = p.position.clone();   // pra teste swept (segmento)
     if (p.userData.gravity) p.userData.vel.y -= 9.8 * dt;
     p.position.addScaledVector(p.userData.vel, dt);
     p.userData.life += dt;
     let removed = false;
     for (const u of ufos) {
       if (u.state === 'dead' || u.state === 'escaping_done') continue;
-      if (p.position.distanceTo(u.group.position) < UFO_HIT_RADIUS * u.group.scale.x) {
+      const r = Math.max(0.45, UFO_HIT_RADIUS * u.group.scale.x + 0.10);
+      // Segment vs sphere: distância do trajeto do projétil ao centro do UFO
+      const c = u.group.position;
+      const seg = p.position.clone().sub(prevPos);
+      const segLen = seg.length();
+      let hitDist;
+      if (segLen < 0.001) {
+        hitDist = p.position.distanceTo(c);
+      } else {
+        const segDir = seg.clone().divideScalar(segLen);
+        const toC = c.clone().sub(prevPos);
+        const t = Math.max(0, Math.min(segLen, toC.dot(segDir)));
+        const closest = prevPos.clone().addScaledVector(segDir, t);
+        hitDist = closest.distanceTo(c);
+      }
+      if (hitDist < r) {
         damageUfo(u, p.userData.damage);
         if (p.userData.isEgg) {
           playEggSplat();
