@@ -1319,20 +1319,14 @@ function makeEggProj(scale = 1) {
   return g;
 }
 
-// Throw egg from controller — intensidade puramente proporcional à velocidade da mão
+// Throw egg — intensidade e direção 1:1 com o movimento da mão (sem bias fixo)
 function throwEgg(ctrl, vel) {
   const origin = new THREE.Vector3(); ctrl.getWorldPosition(origin);
   const proj = makeEggProj(1);
   proj.position.copy(origin);
-  // Velocidade = velocidade da mão * 2.8 (sem bias fixo; força reflete o movimento)
-  const v = vel.clone().multiplyScalar(2.8);
-  // Pequeno bias forward apenas se a velocidade tem componente forward, pra evitar arremessos pra trás
-  const fwd = new THREE.Vector3(0, 0, -1);
-  const q = new THREE.Quaternion(); ctrl.getWorldQuaternion(q);
-  fwd.applyQuaternion(q);
-  // Se vel tem direção forward (>0 dot com fwd), boost ligeiro escalado pela velocidade
-  const speedMag = vel.length();
-  if (v.dot(fwd) > 0) v.addScaledVector(fwd, Math.min(2.5, speedMag * 0.5));
+  // Velocidade do ovo = velocidade da mão * 1.6 — mexeu pouco vai pouco, mexeu forte vai longe
+  // Sem bias forward: direção é exatamente o vetor de movimento
+  const v = vel.clone().multiplyScalar(1.6);
   proj.userData.vel = v;
   proj.userData.life = 0;
   proj.userData.damage = 1;
@@ -1342,7 +1336,8 @@ function throwEgg(ctrl, vel) {
   scene.add(proj);
   projectiles.push(proj);
   playEggThrow();
-  pulseController(ctrl, Math.min(0.9, 0.3 + speedMag * 0.1), 80);
+  const speedMag = vel.length();
+  pulseController(ctrl, Math.min(0.9, 0.2 + speedMag * 0.1), 70);
 }
 
 // =============================================================================
@@ -2246,9 +2241,9 @@ renderer.setAnimationLoop(() => {
     ctrlPrevPos.right.copy(rp);
   }
 
-  // HANDS: detect "strong intentional throw" by velocity threshold
-  // Threshold de ~3 m/s descarta tremor casual; throw natural fica entre 4-10 m/s
-  const HAND_THROW_VEL = 3.0;
+  // HANDS: detecta arremesso por velocidade — threshold baixo pra captar arremessos suaves
+  // Throws lentos viram ovos lentos (vel*1.6); rápidos viram ovos rápidos. Direção 1:1.
+  const HAND_THROW_VEL = 1.5;
   if (activeWeapon === 'hands' && (state === 'playing' || state === 'wave_intro') && renderer.xr.isPresenting) {
     if (eggReadyLeft && ctrlVel.left.length() > HAND_THROW_VEL) {
       throwEgg(leftCtrl, ctrlVel.left);
