@@ -468,11 +468,11 @@ road.position.set(0, 0.02, 35); road.rotation.z = 0.2;
 scene.add(road);
 
 // =============================================================================
-// WHEELCHAIR
+// WHEELCHAIR — filha do cameraRig pra rotacionar junto com o player
 // =============================================================================
 const wheelchair = new THREE.Group();
-wheelchair.position.set(0, PORCH_LEVEL, 0);
-scene.add(wheelchair);
+wheelchair.position.set(0, 0, 0);  // local ao cameraRig (que já tá em PORCH_LEVEL)
+cameraRig.add(wheelchair);
 
 const chairMat = new THREE.MeshLambertMaterial({color:0x303038});
 const chairCushionMat = new THREE.MeshLambertMaterial({color:0x603040});
