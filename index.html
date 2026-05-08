@@ -6,7 +6,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>plank walk VR — Quest 2</title>
+<title>plank walk VR — alien pigeon attack</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;background:#000;overflow:hidden;font-family:'Helvetica Neue','Segoe UI',Arial,sans-serif;user-select:none;-webkit-user-select:none}
@@ -15,8 +15,9 @@ canvas{display:block}
 #start{position:fixed;inset:0;background:radial-gradient(ellipse at center,#1a0030 0%,#000 100%);z-index:30;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:20px;color:#fff;text-align:center;cursor:pointer;touch-action:manipulation}
 #start h1{font-size:74px;letter-spacing:6px;color:#a020ff;text-shadow:0 0 30px rgba(160,32,255,0.85),0 0 60px rgba(160,32,255,0.4);margin-bottom:6px;font-family:'Impact','Arial Black',sans-serif}
 #start .sub{color:#d8a8ff;font-size:13px;letter-spacing:4px;margin-bottom:24px;opacity:0.9}
-#start .panel{background:rgba(20,5,40,0.7);border:1px solid rgba(160,32,255,0.4);padding:18px 28px;max-width:560px;text-align:left;line-height:1.7;font-size:14px;color:#cfcfcf;border-radius:6px;box-shadow:0 0 40px rgba(160,32,255,0.15)}
+#start .panel{background:rgba(20,5,40,0.7);border:1px solid rgba(160,32,255,0.4);padding:18px 28px;max-width:580px;text-align:left;line-height:1.7;font-size:14px;color:#cfcfcf;border-radius:6px;box-shadow:0 0 40px rgba(160,32,255,0.15)}
 #start .panel b{color:#d8a8ff}
+#start .panel .red{color:#ff6060}
 #start .panel .warn{color:#ffa040;display:block;margin-top:12px;font-size:13px;border-top:1px solid rgba(255,160,64,0.2);padding-top:10px}
 #start .hint{color:#888;font-size:12px;margin-top:14px;letter-spacing:1px}
 #start .hint b{color:#a020ff}
@@ -24,11 +25,21 @@ canvas{display:block}
 #hud{position:fixed;top:6px;left:8px;color:#666;font-size:10px;font-family:monospace;pointer-events:none;z-index:5;text-shadow:0 0 4px #000;opacity:0.5}
 #instr{position:fixed;top:80px;left:50%;transform:translateX(-50%);color:#fff;font-size:15px;background:rgba(0,0,0,0.65);padding:10px 20px;border-radius:6px;letter-spacing:1px;z-index:6;pointer-events:none;display:none;border:1px solid rgba(160,32,255,0.4);text-align:center}
 #instr.show{display:block}
-#score-d{position:fixed;top:14px;right:14px;color:#fff;font-size:18px;background:linear-gradient(135deg,rgba(40,10,60,0.85),rgba(20,4,40,0.85));padding:10px 18px;border-radius:6px;letter-spacing:2px;z-index:6;pointer-events:none;display:none;border:1px solid rgba(160,32,255,0.5);font-family:'Impact','Arial Black',sans-serif;box-shadow:0 0 20px rgba(160,32,255,0.25)}
+#score-d{position:fixed;top:14px;right:14px;color:#fff;font-size:18px;background:linear-gradient(135deg,rgba(40,10,60,0.85),rgba(20,4,40,0.85));padding:10px 18px;border-radius:6px;letter-spacing:2px;z-index:6;pointer-events:none;display:none;border:1px solid rgba(160,32,255,0.5);font-family:'Impact','Arial Black',sans-serif;box-shadow:0 0 20px rgba(160,32,255,0.25);min-width:180px}
 #score-d.show{display:block}
 #score-d .label{font-size:10px;color:#d8a8ff;letter-spacing:3px;display:block;margin-bottom:2px}
 #score-d .val{color:#fff;font-size:22px}
 #score-d .total{color:#888;font-size:16px}
+#score-d .hp{color:#ff4060;font-size:22px;letter-spacing:3px;margin-top:6px;display:block}
+#score-d .hp .empty{color:#404040}
+#crosshair{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:16px;height:16px;border:2px solid rgba(255,255,255,0.6);border-radius:50%;z-index:6;pointer-events:none;display:none}
+#crosshair.show{display:block}
+#crosshair::before,#crosshair::after{content:'';position:absolute;background:rgba(255,255,255,0.6)}
+#crosshair::before{left:-6px;top:50%;width:4px;height:1px;transform:translateY(-50%)}
+#crosshair::after{right:-6px;top:50%;width:4px;height:1px;transform:translateY(-50%)}
+
+#hurt-flash{position:fixed;inset:0;pointer-events:none;z-index:24;background:radial-gradient(ellipse at center,transparent 25%,rgba(220,40,40,0.65) 100%);opacity:0;transition:opacity 0.15s}
+#hurt-flash.show{opacity:1}
 
 #fade{position:fixed;inset:0;pointer-events:none;z-index:25;background:radial-gradient(ellipse at center,#a00 0%,#400 100%);opacity:0;transition:opacity 0.35s}
 #fade.show{opacity:0.92}
@@ -44,25 +55,30 @@ canvas{display:block}
 
 <div id="start">
   <h1>PLANK&nbsp;WALK</h1>
-  <div class="sub">QUEST 2 · WEBXR · CATCH THE PIGEONS</div>
+  <div class="sub">QUEST 2 · WEBXR · ALIEN PIGEON ATTACK</div>
   <div class="panel">
-    <b>200 andares acima da rua.</b> Aperte o botão pra subir. A porta abre num saguão no topo do prédio. Lá fora, uma <b>tábua de madeira estreita</b> sai pro vazio — e tem <b>5 pombinhas</b> espalhadas. Pegue todas.<br><br>
-    Algumas estão no rooftop seguro, mas a última está <b>bem na ponta</b> da tábua. Errar o passo = queda livre de 200 andares.<br><br>
-    <b>VR:</b> thumbstick esquerdo anda, thumbstick direito vira (snap), <b>trigger</b> aperta o botão / pega a pomba quando perto.<br>
-    <b>Desktop:</b> WASD anda, mouse olha, <b>E</b> aperta botão, <b>F</b> pega pomba quando perto.
-    <span class="warn">⚠ Vertigem real é possível. Sente antes se for sensível a altura. Recomendado room-scale com ~2m livres na frente.</span>
+    <b>200 andares acima da rua.</b> Você sobe pelo elevador, sai no rooftop... e os <b class="red">pombos alienígenas</b> aparecem voando do céu, te atacando. Eles têm olhos vermelhos, antena verde e querem te derrubar do prédio.<br><br>
+    Por sorte, alguém deixou um <b>estilingue</b> aqui em cima.<br><br>
+    <b>Estilingue VR:</b> a <b>mão direita</b> segura a forquilha do estilingue. Leve a <b>mão esquerda</b> até a saquinho (pouch) entre as forquilhas, <b>aperte o trigger esquerdo</b> pra agarrar, <b>puxe pra trás</b> e <b>solte o trigger</b> pra atirar. Quanto mais puxa, mais força.<br><br>
+    <b>Movimento VR:</b> thumbstick esquerdo anda, direito vira (snap).<br>
+    <b>Desktop:</b> WASD anda, mouse mira, <b>clique</b> atira. <b>E</b> aperta botão do elevador.<br><br>
+    <b class="red">10 pombos alienígenas. 3 vidas.</b> Mate todos sem cair nem perder vida.
+    <span class="warn">⚠ Tem queda livre de 200 andares se andar pra fora da tábua. Vertigem real.</span>
   </div>
   <div class="hint">Toque a tela e clique <b>ENTER VR</b> embaixo (Quest 2 browser).<br>Ou clique aqui pra preview no desktop.</div>
 </div>
 
 <div id="hud"></div>
 <div id="instr"></div>
+<div id="crosshair"></div>
 <div id="score-d">
-  <span class="label">PIGEONS</span>
-  <span class="val">0</span><span class="total">/5</span>
+  <span class="label">ALIEN KILLS</span>
+  <span class="val">0</span><span class="total">/10</span>
+  <span class="hp">❤❤❤</span>
 </div>
+<div id="hurt-flash"></div>
 <div id="fade"><div class="splat">SPLAT</div></div>
-<div id="win"><h2>PERFECT CATCH!</h2><p>Você não morreu</p></div>
+<div id="win"><h2>VICTORY!</h2><p>Você salvou o prédio</p></div>
 
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
@@ -73,7 +89,7 @@ import * as THREE from 'three';
 import {VRButton} from 'three/addons/webxr/VRButton.js';
 
 // =============================================================================
-// CONSTANTS — building is now 200 floors tall
+// CONSTANTS
 // =============================================================================
 const ROOF_Y = 200;
 const ROOF_HALF = 4.5;
@@ -81,14 +97,18 @@ const PLANK_LEN = 3.4;
 const PLANK_W = 0.42;
 const PLANK_T = 0.06;
 const PLANK_CENTER_Z = 4.5;
-const PLANK_BACK_Z = PLANK_CENTER_Z - PLANK_LEN/2;   // 2.8
-const PLANK_FRONT_Z = PLANK_CENTER_Z + PLANK_LEN/2;  // 6.2
+const PLANK_BACK_Z = PLANK_CENTER_Z - PLANK_LEN/2;
+const PLANK_FRONT_Z = PLANK_CENTER_Z + PLANK_LEN/2;
 const ELEV_Z = -2.8;
 const PLANK_TOP_Y = ROOF_Y + PLANK_T + 0.04;
 const TOTAL_FLOORS = 200;
 const RISE_DURATION = 9.5;
-const CATCH_DIST = 0.65;
-const TOTAL_PIGEONS = 5;
+const TOTAL_ALIENS = 10;
+const MAX_HP = 3;
+const POUCH_GRAB_DIST = 0.22;
+const SHOT_SPEED_FACTOR = 24;
+const MAX_SHOT_SPEED = 13;
+const ALIEN_HIT_RADIUS = 0.32;
 
 // =============================================================================
 // RENDERER + SCENE
@@ -163,7 +183,6 @@ sunDisc.position.set(420, 280, 280);
 sunDisc.lookAt(0, ROOF_Y, 0);
 scene.add(sunDisc);
 
-// Clouds — multi-layer
 const cloudMat = new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.85, fog:false});
 const cloudMatDim = new THREE.MeshBasicMaterial({color:0xe8e8ee, transparent:true, opacity:0.7, fog:false});
 for (let i = 0; i < 26; i++) {
@@ -177,13 +196,13 @@ for (let i = 0; i < 26; i++) {
 }
 
 // =============================================================================
-// CITY (low-poly procedural)
+// CITY
 // =============================================================================
 const cityGroup = new THREE.Group();
 scene.add(cityGroup);
 
 const buildingPalette = [0x4a4a52, 0x5a5258, 0x6a605c, 0x404048, 0x5a4844, 0x382e36, 0x6c6470, 0x4a3838, 0x382838, 0x5e4a40];
-const cityBuildings = []; // for window flicker
+const cityWindows = [];
 
 function buildCity() {
   const range = 240;
@@ -191,12 +210,10 @@ function buildCity() {
   const proto = new THREE.BoxGeometry(1, 1, 1);
   for (let x = -range; x <= range; x += step) {
     for (let z = -range; z <= range; z += step) {
-      const closeToBase = Math.abs(x) < 12 && z > -12 && z < 40;
-      if (closeToBase) continue;
+      if (Math.abs(x) < 12 && z > -12 && z < 40) continue;
       if (Math.random() < 0.16) continue;
       const w = 7 + Math.random() * 9;
       const d = 7 + Math.random() * 9;
-      // Some are very tall (skyscrapers near "downtown")
       const distToCenter = Math.hypot(x, z);
       const isSkyscraper = distToCenter < 110 && Math.random() < 0.08;
       const h = isSkyscraper ? (60 + Math.random() * 80) : (5 + Math.random() * 36);
@@ -207,7 +224,6 @@ function buildCity() {
       m.position.set(x + (Math.random()-0.5)*5, h/2, z + (Math.random()-0.5)*5);
       m.scale.set(w, h, d);
       cityGroup.add(m);
-      // Lit window strip on tall ones
       if (h > 18 && Math.random() < 0.45) {
         const wm = new THREE.Mesh(
           new THREE.BoxGeometry(w*0.32, h*0.5, d*0.32),
@@ -216,9 +232,8 @@ function buildCity() {
         wm.position.copy(m.position);
         wm.position.y = h*0.7;
         cityGroup.add(wm);
-        cityBuildings.push(wm);
+        cityWindows.push(wm);
       }
-      // Sometimes antenna on top
       if (h > 50 && Math.random() < 0.4) {
         const ant = new THREE.Mesh(
           new THREE.CylinderGeometry(0.12, 0.18, 6, 6),
@@ -232,11 +247,10 @@ function buildCity() {
         );
         tip.position.set(m.position.x, h + 6.2, m.position.z);
         cityGroup.add(tip);
-        cityBuildings.push(tip);
+        cityWindows.push(tip);
       }
     }
   }
-  // Ground
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1200, 1200),
     new THREE.MeshLambertMaterial({color:0x18191e})
@@ -244,7 +258,6 @@ function buildCity() {
   ground.rotation.x = -Math.PI/2;
   ground.position.y = -0.1;
   cityGroup.add(ground);
-  // Streets
   for (let i = -10; i <= 10; i++) {
     const street = new THREE.Mesh(
       new THREE.PlaneGeometry(1000, 4),
@@ -261,7 +274,6 @@ function buildCity() {
 }
 buildCity();
 
-// Park (green patch in city)
 const park = new THREE.Mesh(
   new THREE.PlaneGeometry(35, 30),
   new THREE.MeshLambertMaterial({color:0x3a6028})
@@ -269,7 +281,6 @@ const park = new THREE.Mesh(
 park.rotation.x = -Math.PI/2;
 park.position.set(60, 0.05, -45);
 cityGroup.add(park);
-// Trees on park
 for (let i = 0; i < 8; i++) {
   const tree = new THREE.Mesh(
     new THREE.ConeGeometry(1.2, 4, 6),
@@ -279,7 +290,6 @@ for (let i = 0; i < 8; i++) {
   cityGroup.add(tree);
 }
 
-// Cars
 const cars = [];
 const carColors = [0xe04030, 0xe8a020, 0x40b0e8, 0xffffff, 0x202028, 0x80c040, 0xd0d0d0, 0xc04080, 0xe8d030];
 function spawnCar() {
@@ -303,13 +313,10 @@ function spawnCar() {
 for (let i = 0; i < 22; i++) spawnCar();
 
 // =============================================================================
-// HELICOPTER
+// HELICOPTER + AIRPLANE
 // =============================================================================
 const heli = new THREE.Group();
-const heliBody = new THREE.Mesh(
-  new THREE.BoxGeometry(2, 1.4, 3.6),
-  new THREE.MeshLambertMaterial({color:0x303838})
-);
+const heliBody = new THREE.Mesh(new THREE.BoxGeometry(2, 1.4, 3.6), new THREE.MeshLambertMaterial({color:0x303838}));
 heli.add(heliBody);
 const heliGlass = new THREE.Mesh(
   new THREE.SphereGeometry(0.9, 8, 6, 0, Math.PI*2, 0, Math.PI/2),
@@ -318,86 +325,30 @@ const heliGlass = new THREE.Mesh(
 heliGlass.scale.set(1, 0.6, 1.1);
 heliGlass.position.set(0, 0.2, 1.2);
 heli.add(heliGlass);
-const heliTail = new THREE.Mesh(
-  new THREE.BoxGeometry(0.4, 0.4, 2),
-  new THREE.MeshLambertMaterial({color:0x303838})
-);
+const heliTail = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 2), new THREE.MeshLambertMaterial({color:0x303838}));
 heliTail.position.set(0, 0, -2.2);
 heli.add(heliTail);
-const heliRotor = new THREE.Mesh(
-  new THREE.BoxGeometry(0.05, 0.04, 5.5),
-  new THREE.MeshBasicMaterial({color:0x202020, transparent:true, opacity:0.6})
-);
-heliRotor.position.y = 0.85;
-heli.add(heliRotor);
-const heliRotorB = new THREE.Mesh(
-  new THREE.BoxGeometry(5.5, 0.04, 0.05),
-  new THREE.MeshBasicMaterial({color:0x202020, transparent:true, opacity:0.6})
-);
-heliRotorB.position.y = 0.85;
-heli.add(heliRotorB);
-const heliTailRotor = new THREE.Mesh(
-  new THREE.BoxGeometry(1.5, 0.03, 0.03),
-  new THREE.MeshBasicMaterial({color:0x202020, transparent:true, opacity:0.6})
-);
-heliTailRotor.position.set(-0.3, 0, -3.2);
-heli.add(heliTailRotor);
-// Nav lights
-const heliRedLight = new THREE.Mesh(
-  new THREE.SphereGeometry(0.12, 6, 4),
-  new THREE.MeshBasicMaterial({color:0xff2020})
-);
-heliRedLight.position.set(-1, -0.6, 0);
-heli.add(heliRedLight);
-const heliGreenLight = new THREE.Mesh(
-  new THREE.SphereGeometry(0.12, 6, 4),
-  new THREE.MeshBasicMaterial({color:0x20ff20})
-);
-heliGreenLight.position.set(1, -0.6, 0);
-heli.add(heliGreenLight);
+const heliRotor = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.04, 5.5), new THREE.MeshBasicMaterial({color:0x202020, transparent:true, opacity:0.6}));
+heliRotor.position.y = 0.85; heli.add(heliRotor);
+const heliRotorB = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.04, 0.05), new THREE.MeshBasicMaterial({color:0x202020, transparent:true, opacity:0.6}));
+heliRotorB.position.y = 0.85; heli.add(heliRotorB);
+const heliTailRotor = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.03, 0.03), new THREE.MeshBasicMaterial({color:0x202020, transparent:true, opacity:0.6}));
+heliTailRotor.position.set(-0.3, 0, -3.2); heli.add(heliTailRotor);
+const heliRedLight = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 4), new THREE.MeshBasicMaterial({color:0xff2020}));
+heliRedLight.position.set(-1, -0.6, 0); heli.add(heliRedLight);
+const heliGreenLight = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 4), new THREE.MeshBasicMaterial({color:0x20ff20}));
+heliGreenLight.position.set(1, -0.6, 0); heli.add(heliGreenLight);
 scene.add(heli);
 
-// =============================================================================
-// AIRPLANE
-// =============================================================================
 const plane = new THREE.Group();
-const planeBody = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.6, 0.6, 6, 8),
-  new THREE.MeshLambertMaterial({color:0xeeeeee})
-);
-planeBody.rotation.z = Math.PI/2;
-plane.add(planeBody);
-const planeWing = new THREE.Mesh(
-  new THREE.BoxGeometry(7, 0.1, 1.4),
-  new THREE.MeshLambertMaterial({color:0xeeeeee})
-);
+const planeBody = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 6, 8), new THREE.MeshLambertMaterial({color:0xeeeeee}));
+planeBody.rotation.z = Math.PI/2; plane.add(planeBody);
+const planeWing = new THREE.Mesh(new THREE.BoxGeometry(7, 0.1, 1.4), new THREE.MeshLambertMaterial({color:0xeeeeee}));
 plane.add(planeWing);
-const planeTail = new THREE.Mesh(
-  new THREE.BoxGeometry(1.6, 1.0, 0.1),
-  new THREE.MeshLambertMaterial({color:0xeeeeee})
-);
-planeTail.position.set(-2.6, 0.5, 0);
-plane.add(planeTail);
+const planeTail = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 0.1), new THREE.MeshLambertMaterial({color:0xeeeeee}));
+planeTail.position.set(-2.6, 0.5, 0); plane.add(planeTail);
 plane.scale.set(1.4, 1.4, 1.4);
 scene.add(plane);
-let planeAngle = 0;
-
-// Flock of distant birds
-const flock = new THREE.Group();
-const birdMat = new THREE.MeshBasicMaterial({color:0x303030, side:THREE.DoubleSide});
-const birdGeo = new THREE.BufferGeometry();
-birdGeo.setAttribute('position', new THREE.Float32BufferAttribute([
-  -0.3, 0, 0,  0, 0, 0.1,  0.3, 0, 0,
-  -0.3, 0, 0,  0, 0, -0.1, 0.3, 0, 0
-], 3));
-for (let i = 0; i < 12; i++) {
-  const bird = new THREE.Mesh(birdGeo, birdMat);
-  bird.position.set((Math.random()-0.5)*8, (Math.random()-0.5)*4, (Math.random()-0.5)*8);
-  flock.add(bird);
-}
-flock.position.set(120, ROOF_Y - 30, 100);
-scene.add(flock);
-let flockAngle = 0;
 
 // =============================================================================
 // PLAYER ROOFTOP + TOWER
@@ -405,25 +356,16 @@ let flockAngle = 0;
 const rooftop = new THREE.Group();
 scene.add(rooftop);
 
-// Roof slab
 const roofMat = new THREE.MeshLambertMaterial({color:0x8e8e92});
-const roofMesh = new THREE.Mesh(
-  new THREE.BoxGeometry(9, 0.7, 9),
-  roofMat
-);
+const roofMesh = new THREE.Mesh(new THREE.BoxGeometry(9, 0.7, 9), roofMat);
 roofMesh.position.set(0, ROOF_Y - 0.35, 0);
 rooftop.add(roofMesh);
 
-// Tower shaft
 const shaftMat = new THREE.MeshLambertMaterial({color:0x4a4a55});
-const shaft = new THREE.Mesh(
-  new THREE.BoxGeometry(8.6, ROOF_Y, 8.6),
-  shaftMat
-);
+const shaft = new THREE.Mesh(new THREE.BoxGeometry(8.6, ROOF_Y, 8.6), shaftMat);
 shaft.position.set(0, ROOF_Y/2 - 0.4, 0);
 rooftop.add(shaft);
 
-// Vertical accent strips on shaft (corners)
 for (let cx = -1; cx <= 1; cx += 2) {
   for (let cz = -1; cz <= 1; cz += 2) {
     const strip = new THREE.Mesh(
@@ -435,7 +377,6 @@ for (let cx = -1; cx <= 1; cx += 2) {
   }
 }
 
-// Window strips on shaft
 const towerWindowsLit = [];
 for (let side = 0; side < 4; side++) {
   for (let row = 0; row < 38; row++) {
@@ -454,22 +395,17 @@ for (let side = 0; side < 4; side++) {
   }
 }
 
-// Floor markings on tower (every 50 floors)
 function makeFloorBand(floorNum, y) {
   const c = document.createElement('canvas');
   c.width = 512; c.height = 64;
   const g = c.getContext('2d');
-  g.fillStyle = '#1a1a22';
-  g.fillRect(0, 0, 512, 64);
+  g.fillStyle = '#1a1a22'; g.fillRect(0, 0, 512, 64);
   g.fillStyle = '#ffd870';
   g.font = 'bold 38px monospace';
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillText('FLOOR ' + floorNum, 256, 32);
   const tex = new THREE.CanvasTexture(c);
-  const m = new THREE.Mesh(
-    new THREE.PlaneGeometry(4, 0.6),
-    new THREE.MeshBasicMaterial({map: tex})
-  );
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(4, 0.6), new THREE.MeshBasicMaterial({map: tex}));
   m.position.set(0, y, 4.36);
   return m;
 }
@@ -477,64 +413,36 @@ rooftop.add(makeFloorBand(50, 50));
 rooftop.add(makeFloorBand(100, 100));
 rooftop.add(makeFloorBand(150, 150));
 
-// Rooftop AC units, vents, antenna
+// AC units, vents
 const acGeo = new THREE.BoxGeometry(1.4, 0.8, 1.0);
 const acMat = new THREE.MeshLambertMaterial({color:0x60606a});
 const ac1 = new THREE.Mesh(acGeo, acMat); ac1.position.set(3.2, ROOF_Y + 0.4, -3.4); rooftop.add(ac1);
 const ac2 = new THREE.Mesh(acGeo, acMat); ac2.position.set(-3.4, ROOF_Y + 0.4, 2.8); rooftop.add(ac2);
 const ac3 = new THREE.Mesh(acGeo, acMat); ac3.position.set(3.4, ROOF_Y + 0.4, 2.6); rooftop.add(ac3);
 
-// Vent pipes
 const ventMat = new THREE.MeshLambertMaterial({color:0x808088});
 for (let i = 0; i < 3; i++) {
-  const vent = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.25, 0.25, 0.7 + Math.random()*0.5, 12),
-    ventMat
-  );
+  const vent = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.7 + Math.random()*0.5, 12), ventMat);
   vent.position.set(-3.6 + Math.random()*0.5, ROOF_Y + 0.35, -3.5 + i*0.6);
   rooftop.add(vent);
-  const cap = new THREE.Mesh(
-    new THREE.TorusGeometry(0.3, 0.06, 4, 12),
-    ventMat
-  );
+  const cap = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.06, 4, 12), ventMat);
   cap.position.copy(vent.position);
   cap.position.y = vent.position.y + 0.4;
   cap.rotation.x = Math.PI/2;
   rooftop.add(cap);
 }
 
-// Antenna mast (red blinking light)
-const mast = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.06, 0.1, 5, 8),
-  new THREE.MeshLambertMaterial({color:0x202028})
-);
+const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.1, 5, 8), new THREE.MeshLambertMaterial({color:0x202028}));
 mast.position.set(-3.8, ROOF_Y + 2.5, -3.8);
 rooftop.add(mast);
-const mastBase = new THREE.Mesh(
-  new THREE.BoxGeometry(0.4, 0.1, 0.4),
-  new THREE.MeshLambertMaterial({color:0x404048})
-);
-mastBase.position.set(-3.8, ROOF_Y + 0.05, -3.8);
-rooftop.add(mastBase);
-const mastTip = new THREE.Mesh(
-  new THREE.SphereGeometry(0.18, 8, 6),
-  new THREE.MeshBasicMaterial({color:0xff2020})
-);
+const mastTip = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), new THREE.MeshBasicMaterial({color:0xff2020}));
 mastTip.position.set(-3.8, ROOF_Y + 5.1, -3.8);
 rooftop.add(mastTip);
-// Crossbar
-const crossbar = new THREE.Mesh(
-  new THREE.BoxGeometry(0.04, 0.04, 1.4),
-  new THREE.MeshLambertMaterial({color:0x202028})
-);
+const crossbar = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 1.4), new THREE.MeshLambertMaterial({color:0x202028}));
 crossbar.position.set(-3.8, ROOF_Y + 4.2, -3.8);
 rooftop.add(crossbar);
 
-// Windsock (cone) on a small pole
-const sockPole = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.02, 0.02, 1.2, 6),
-  new THREE.MeshLambertMaterial({color:0x303030})
-);
+const sockPole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.2, 6), new THREE.MeshLambertMaterial({color:0x303030}));
 sockPole.position.set(3.6, ROOF_Y + 0.6, 3.6);
 rooftop.add(sockPole);
 const sock = new THREE.Mesh(
@@ -545,7 +453,7 @@ sock.rotation.z = -Math.PI/2;
 sock.position.set(3.85, ROOF_Y + 1.15, 3.6);
 rooftop.add(sock);
 
-// Edge curbs (NONE on +z side — danger zone)
+// curbs
 const curbMat = new THREE.MeshLambertMaterial({color:0xa0a0a8});
 const curbX1 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.35, 9), curbMat);
 curbX1.position.set(-4.42, ROOF_Y + 0.18, 0); rooftop.add(curbX1);
@@ -553,59 +461,30 @@ const curbX2 = curbX1.clone(); curbX2.position.set(4.42, ROOF_Y + 0.18, 0); roof
 const curbZ = new THREE.Mesh(new THREE.BoxGeometry(9, 0.35, 0.15), curbMat);
 curbZ.position.set(0, ROOF_Y + 0.18, -4.42); rooftop.add(curbZ);
 
-// Hazard chevrons on +z side (right by where the plank exits)
+// hazard chevrons
 function makeChevronTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 32;
   const g = c.getContext('2d');
-  g.fillStyle = '#1a1a1a';
-  g.fillRect(0, 0, 256, 32);
+  g.fillStyle = '#1a1a1a'; g.fillRect(0, 0, 256, 32);
   for (let i = -1; i < 8; i++) {
     g.fillStyle = '#ffcc20';
     g.beginPath();
     g.moveTo(i*40, 0); g.lineTo(i*40 + 30, 0);
     g.lineTo(i*40 + 60, 32); g.lineTo(i*40 + 30, 32);
-    g.closePath();
-    g.fill();
+    g.closePath(); g.fill();
   }
   const t = new THREE.CanvasTexture(c);
   t.wrapS = THREE.RepeatWrapping;
   return t;
 }
 const chevTex = makeChevronTexture();
-const hazardStrip = new THREE.Mesh(
-  new THREE.BoxGeometry(9, 0.06, 0.5),
-  new THREE.MeshLambertMaterial({map: chevTex})
-);
+const hazardStrip = new THREE.Mesh(new THREE.BoxGeometry(9, 0.06, 0.5), new THREE.MeshLambertMaterial({map: chevTex}));
 hazardStrip.position.set(0, ROOF_Y + 0.04, 4.2);
 rooftop.add(hazardStrip);
 
-// "DANGER" sign near the plank
-function makeSignTexture(text, color='#ff3030') {
-  const c = document.createElement('canvas');
-  c.width = 512; c.height = 128;
-  const g = c.getContext('2d');
-  g.fillStyle = '#0a0a0a';
-  g.fillRect(0, 0, 512, 128);
-  g.strokeStyle = color;
-  g.lineWidth = 6;
-  g.strokeRect(8, 8, 496, 112);
-  g.fillStyle = color;
-  g.font = 'bold 60px sans-serif';
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(text, 256, 64);
-  return new THREE.CanvasTexture(c);
-}
-const dangerSign = new THREE.Mesh(
-  new THREE.PlaneGeometry(1.4, 0.35),
-  new THREE.MeshBasicMaterial({map: makeSignTexture('⚠ DANGER ⚠')})
-);
-dangerSign.position.set(2, ROOF_Y + 0.6, 4.2);
-dangerSign.rotation.y = -0.6;
-rooftop.add(dangerSign);
-
 // =============================================================================
-// THE PLANK
+// PLANK
 // =============================================================================
 function makeWoodTexture() {
   const c = document.createElement('canvas'); c.width = 256; c.height = 64;
@@ -620,12 +499,9 @@ function makeWoodTexture() {
     g.fillStyle = `rgba(120,90,60,${0.08 + Math.random()*0.15})`;
     g.fillRect(Math.random()*256, Math.random()*64, 4 + Math.random()*20, 1 + Math.random()*3);
   }
-  // Knots
   for (let i = 0; i < 4; i++) {
     g.fillStyle = '#3a2812';
-    g.beginPath();
-    g.arc(Math.random()*256, Math.random()*64, 3 + Math.random()*4, 0, Math.PI*2);
-    g.fill();
+    g.beginPath(); g.arc(Math.random()*256, Math.random()*64, 3 + Math.random()*4, 0, Math.PI*2); g.fill();
   }
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -639,23 +515,6 @@ const plank = new THREE.Mesh(
 plank.position.set(0, ROOF_Y + PLANK_T/2, PLANK_CENTER_Z);
 scene.add(plank);
 
-// Visible nails on the part that sits on the roof
-for (let i = 0; i < 4; i++) {
-  const nail = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.012, 0.012, 0.02, 6),
-    new THREE.MeshLambertMaterial({color:0x3a3a40})
-  );
-  nail.position.set(
-    (i % 2 === 0 ? -0.15 : 0.15),
-    ROOF_Y + PLANK_T + 0.005,
-    PLANK_BACK_Z + 0.15 + Math.floor(i/2) * 0.4
-  );
-  plank.add(nail);
-  // remove from plank parent and add to scene so it stays attached when plank rotates
-}
-// Above attached to plank — they sway with it. Good.
-
-// Red end marker
 const plankEnd = new THREE.Mesh(
   new THREE.BoxGeometry(PLANK_W + 0.02, PLANK_T + 0.01, 0.06),
   new THREE.MeshBasicMaterial({color:0xff3030})
@@ -663,97 +522,12 @@ const plankEnd = new THREE.Mesh(
 plankEnd.position.set(0, PLANK_T/2 + 0.005, PLANK_LEN/2 - 0.03);
 plank.add(plankEnd);
 
-// Plank base reinforcement (where it meets the roof)
 const plankBase = new THREE.Mesh(
   new THREE.BoxGeometry(0.7, 0.14, 0.45),
   new THREE.MeshLambertMaterial({color:0x5c4830})
 );
 plankBase.position.set(0, ROOF_Y + 0.07, PLANK_BACK_Z + 0.5);
 scene.add(plankBase);
-
-// =============================================================================
-// PIGEONS — 5 of them
-// =============================================================================
-function makePigeon(bodyColor, headColor) {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.SphereGeometry(0.085, 12, 8),
-    new THREE.MeshLambertMaterial({color:bodyColor})
-  );
-  body.scale.set(1, 0.85, 1.5);
-  g.add(body);
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.055, 10, 8),
-    new THREE.MeshLambertMaterial({color:headColor})
-  );
-  head.position.set(0, 0.075, 0.105);
-  g.add(head);
-  const beak = new THREE.Mesh(
-    new THREE.ConeGeometry(0.014, 0.04, 6),
-    new THREE.MeshLambertMaterial({color:0xffa030})
-  );
-  beak.rotation.x = Math.PI/2;
-  beak.position.set(0, 0.075, 0.16);
-  g.add(beak);
-  const tail = new THREE.Mesh(
-    new THREE.BoxGeometry(0.085, 0.018, 0.07),
-    new THREE.MeshLambertMaterial({color:bodyColor})
-  );
-  tail.position.set(0, 0.025, -0.13);
-  g.add(tail);
-  // Wings (closed, flat against body)
-  const wingMat = new THREE.MeshLambertMaterial({color:bodyColor});
-  const wingL = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.02, 0.16), wingMat);
-  wingL.position.set(-0.085, 0.02, -0.01);
-  g.add(wingL);
-  const wingR = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.02, 0.16), wingMat);
-  wingR.position.set(0.085, 0.02, -0.01);
-  g.add(wingR);
-  // Eyes
-  const eyeGeo = new THREE.SphereGeometry(0.011, 6, 6);
-  const eyeMat = new THREE.MeshBasicMaterial({color:0x000000});
-  const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.028, 0.090, 0.135);
-  const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.028, 0.090, 0.135);
-  g.add(eyeL); g.add(eyeR);
-  // Feet (tiny orange dots)
-  const footMat = new THREE.MeshLambertMaterial({color:0xee9020});
-  const footL = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.012, 0.025), footMat);
-  footL.position.set(-0.025, -0.06, 0.01);
-  g.add(footL);
-  const footR = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.012, 0.025), footMat);
-  footR.position.set(0.025, -0.06, 0.01);
-  g.add(footR);
-  return g;
-}
-
-const pigeons = [];
-const pigeonSpecs = [
-  { color: 0xc8c8d0, head: 0x484850, x: 1.8, z: 1.0, location: 'roof' },     // safety pigeon
-  { color: 0xb0b8c0, head: 0x383038, x: 0.08, z: PLANK_BACK_Z + 0.45, location: 'plank' },
-  { color: 0xa0a8b8, head: 0x404048, x: -0.08, z: PLANK_BACK_Z + 1.15, location: 'plank' },
-  { color: 0xc8b0a0, head: 0x584038, x: 0.05, z: PLANK_CENTER_Z + 0.55, location: 'plank' },
-  { color: 0xd0d4d8, head: 0x282830, x: -0.04, z: PLANK_FRONT_Z - 0.18, location: 'plank' },
-];
-for (let i = 0; i < pigeonSpecs.length; i++) {
-  const spec = pigeonSpecs[i];
-  const g = makePigeon(spec.color, spec.head);
-  const baseY = spec.location === 'roof' ? (ROOF_Y + 0.08) : PLANK_TOP_Y;
-  g.position.set(spec.x, baseY, spec.z);
-  g.rotation.y = (Math.random() - 0.5) * 1.0;
-  scene.add(g);
-  pigeons.push({
-    group: g,
-    baseY: baseY,
-    bobOffset: Math.random() * Math.PI * 2,
-    rotPhase: Math.random() * Math.PI * 2,
-    location: spec.location,
-    caught: false,
-    flyVel: new THREE.Vector3(),
-    flyT: 0,
-    wingFlap: 0
-  });
-}
-let caughtCount = 0;
 
 // =============================================================================
 // ELEVATOR
@@ -767,113 +541,52 @@ const elevWoodMat = new THREE.MeshLambertMaterial({color:0x6a4830});
 const elevWallMat = new THREE.MeshLambertMaterial({color:0x303038});
 const elevTrimMat = new THREE.MeshLambertMaterial({color:0x807060});
 
-// Floor with subtle pattern
 const elevFloor = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 2.4), elevWoodMat);
-elevFloor.position.y = 0.05;
-elevator.add(elevFloor);
-// Floor pattern (border strip)
-const floorBorder = new THREE.Mesh(
-  new THREE.BoxGeometry(2.3, 0.005, 0.04),
-  new THREE.MeshLambertMaterial({color:0x8c6a48})
-);
-floorBorder.position.y = 0.105; floorBorder.position.z = 1.1;
-elevator.add(floorBorder);
-const floorBorder2 = floorBorder.clone();
-floorBorder2.position.z = -1.1;
-elevator.add(floorBorder2);
-
-// Ceiling with light
+elevFloor.position.y = 0.05; elevator.add(elevFloor);
 const elevCeil = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 2.4), elevWallMat);
-elevCeil.position.y = 2.55;
-elevator.add(elevCeil);
-const elevLight = new THREE.Mesh(
-  new THREE.BoxGeometry(0.9, 0.05, 0.9),
-  new THREE.MeshBasicMaterial({color:0xfff8e0})
-);
-elevLight.position.y = 2.5;
-elevator.add(elevLight);
+elevCeil.position.y = 2.55; elevator.add(elevCeil);
+const elevLight = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.05, 0.9), new THREE.MeshBasicMaterial({color:0xfff8e0}));
+elevLight.position.y = 2.5; elevator.add(elevLight);
 const elevPointLight = new THREE.PointLight(0xfff0c0, 0.7, 5);
-elevPointLight.position.y = 2.4;
-elevator.add(elevPointLight);
+elevPointLight.position.y = 2.4; elevator.add(elevPointLight);
 
-// Walls
 const wH = 2.5;
 const wallBack = new THREE.Mesh(new THREE.BoxGeometry(2.4, wH, 0.1), elevWallMat);
-wallBack.position.set(0, wH/2 + 0.05, -1.2);
-elevator.add(wallBack);
+wallBack.position.set(0, wH/2 + 0.05, -1.2); elevator.add(wallBack);
 const wallL = new THREE.Mesh(new THREE.BoxGeometry(0.1, wH, 2.4), elevWallMat);
-wallL.position.set(-1.2, wH/2 + 0.05, 0);
-elevator.add(wallL);
+wallL.position.set(-1.2, wH/2 + 0.05, 0); elevator.add(wallL);
 const wallR = new THREE.Mesh(new THREE.BoxGeometry(0.1, wH, 2.4), elevWallMat);
-wallR.position.set(1.2, wH/2 + 0.05, 0);
-elevator.add(wallR);
+wallR.position.set(1.2, wH/2 + 0.05, 0); elevator.add(wallR);
 
-// Mirror on back wall (cosmetic)
-const mirror = new THREE.Mesh(
-  new THREE.PlaneGeometry(1.0, 1.4),
-  new THREE.MeshLambertMaterial({color:0x607080, emissive:0x202830})
-);
-mirror.position.set(0, 1.6, -1.14);
-elevator.add(mirror);
-const mirrorFrame = new THREE.Mesh(
-  new THREE.BoxGeometry(1.1, 1.5, 0.04),
-  elevTrimMat
-);
-mirrorFrame.position.set(0, 1.6, -1.16);
-elevator.add(mirrorFrame);
+const mirror = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.4), new THREE.MeshLambertMaterial({color:0x607080, emissive:0x202830}));
+mirror.position.set(0, 1.6, -1.14); elevator.add(mirror);
+const mirrorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.5, 0.04), elevTrimMat);
+mirrorFrame.position.set(0, 1.6, -1.16); elevator.add(mirrorFrame);
 
-// Door frame
 const frameTop = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.3, 0.12), elevTrimMat);
-frameTop.position.set(0, wH + 0.05 - 0.15, 1.2);
-elevator.add(frameTop);
+frameTop.position.set(0, wH + 0.05 - 0.15, 1.2); elevator.add(frameTop);
 
-// Doors
 const doorL = new THREE.Mesh(new THREE.BoxGeometry(1.15, wH - 0.3, 0.08), elevTrimMat);
-doorL.position.set(-0.6, (wH - 0.3)/2 + 0.05, 1.2);
-elevator.add(doorL);
+doorL.position.set(-0.6, (wH - 0.3)/2 + 0.05, 1.2); elevator.add(doorL);
 const doorR = new THREE.Mesh(new THREE.BoxGeometry(1.15, wH - 0.3, 0.08), elevTrimMat);
-doorR.position.set(0.6, (wH - 0.3)/2 + 0.05, 1.2);
-elevator.add(doorR);
-
-function setDoorOpen(t) {
-  doorL.position.x = -0.6 - t * 1.05;
-  doorR.position.x = 0.6 + t * 1.05;
-}
+doorR.position.set(0.6, (wH - 0.3)/2 + 0.05, 1.2); elevator.add(doorR);
+function setDoorOpen(t) { doorL.position.x = -0.6 - t * 1.05; doorR.position.x = 0.6 + t * 1.05; }
 setDoorOpen(0);
 
-// Side panel + button + display
-const panel = new THREE.Mesh(
-  new THREE.BoxGeometry(0.05, 0.7, 0.45),
-  new THREE.MeshLambertMaterial({color:0x1a1a20})
-);
-panel.position.set(-1.18, 1.3, -0.4);
-elevator.add(panel);
+const panel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.7, 0.45), new THREE.MeshLambertMaterial({color:0x1a1a20}));
+panel.position.set(-1.18, 1.3, -0.4); elevator.add(panel);
+const buttonMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.05, 18), new THREE.MeshBasicMaterial({color:0xff3020}));
+buttonMesh.rotation.z = Math.PI/2; buttonMesh.position.set(-1.16, 1.18, -0.4); elevator.add(buttonMesh);
+const buttonRing = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.012, 8, 24), new THREE.MeshBasicMaterial({color:0xff8050}));
+buttonRing.rotation.y = Math.PI/2; buttonRing.position.set(-1.155, 1.18, -0.4); elevator.add(buttonRing);
 
-const buttonMesh = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.07, 0.07, 0.05, 18),
-  new THREE.MeshBasicMaterial({color:0xff3020})
-);
-buttonMesh.rotation.z = Math.PI/2;
-buttonMesh.position.set(-1.16, 1.18, -0.4);
-elevator.add(buttonMesh);
-const buttonRing = new THREE.Mesh(
-  new THREE.TorusGeometry(0.1, 0.012, 8, 24),
-  new THREE.MeshBasicMaterial({color:0xff8050})
-);
-buttonRing.rotation.y = Math.PI/2;
-buttonRing.position.set(-1.155, 1.18, -0.4);
-elevator.add(buttonRing);
-
-// Display
 const dispCanvas = document.createElement('canvas');
 dispCanvas.width = 256; dispCanvas.height = 128;
 const dctx = dispCanvas.getContext('2d');
 function drawDisplay(text, sub) {
-  dctx.fillStyle = '#0a0a08';
-  dctx.fillRect(0, 0, 256, 128);
+  dctx.fillStyle = '#0a0a08'; dctx.fillRect(0, 0, 256, 128);
   dctx.fillStyle = '#ff5030';
-  dctx.shadowColor = '#ff5030';
-  dctx.shadowBlur = 12;
+  dctx.shadowColor = '#ff5030'; dctx.shadowBlur = 12;
   dctx.font = 'bold 78px monospace';
   dctx.textAlign = 'center'; dctx.textBaseline = 'middle';
   dctx.fillText(text, 128, 56);
@@ -886,22 +599,16 @@ function drawDisplay(text, sub) {
   dispTex.needsUpdate = true;
 }
 const dispTex = new THREE.CanvasTexture(dispCanvas);
-const dispMesh = new THREE.Mesh(
-  new THREE.PlaneGeometry(0.36, 0.18),
-  new THREE.MeshBasicMaterial({map: dispTex})
-);
-dispMesh.position.set(-1.175, 1.55, -0.4);
-dispMesh.rotation.y = Math.PI/2;
+const dispMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.18), new THREE.MeshBasicMaterial({map: dispTex}));
+dispMesh.position.set(-1.175, 1.55, -0.4); dispMesh.rotation.y = Math.PI/2;
 elevator.add(dispMesh);
 drawDisplay('▶', 'GO 200');
 
-// Sign above button
 function makeTextSprite(text) {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 64;
   const g = c.getContext('2d');
-  g.fillStyle = 'rgba(0,0,0,0)';
-  g.fillRect(0, 0, 256, 64);
+  g.fillStyle = 'rgba(0,0,0,0)'; g.fillRect(0, 0, 256, 64);
   g.fillStyle = '#ffffff';
   g.font = 'bold 32px sans-serif';
   g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -909,54 +616,53 @@ function makeTextSprite(text) {
   const tex = new THREE.CanvasTexture(c);
   return new THREE.MeshBasicMaterial({map: tex, transparent: true});
 }
-const buttonLabel = new THREE.Mesh(
-  new THREE.PlaneGeometry(0.45, 0.1),
-  makeTextSprite('200F · ROOFTOP'));
+const buttonLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.45, 0.1), makeTextSprite('200F · ROOFTOP'));
 buttonLabel.position.set(-1.175, 1.34, -0.4);
 buttonLabel.rotation.y = Math.PI/2;
 elevator.add(buttonLabel);
 
 // =============================================================================
-// 3D SCORE BOARD (above elevator opening, visible when player exits)
+// SCOREBOARD (3D)
 // =============================================================================
 const scoreCanvas = document.createElement('canvas');
 scoreCanvas.width = 512; scoreCanvas.height = 256;
 const sctx = scoreCanvas.getContext('2d');
 const scoreTex = new THREE.CanvasTexture(scoreCanvas);
 function drawScore(extraLine) {
-  sctx.fillStyle = '#0a0410';
-  sctx.fillRect(0, 0, 512, 256);
-  // Border glow
-  sctx.strokeStyle = '#a020ff';
-  sctx.lineWidth = 6;
-  sctx.shadowColor = '#a020ff';
-  sctx.shadowBlur = 20;
+  sctx.fillStyle = '#0a0410'; sctx.fillRect(0, 0, 512, 256);
+  sctx.strokeStyle = '#a020ff'; sctx.lineWidth = 6;
+  sctx.shadowColor = '#a020ff'; sctx.shadowBlur = 20;
   sctx.strokeRect(8, 8, 496, 240);
   sctx.shadowBlur = 0;
-  // Title
   sctx.fillStyle = '#d8a8ff';
-  sctx.font = 'bold 28px sans-serif';
+  sctx.font = 'bold 26px sans-serif';
   sctx.textAlign = 'center'; sctx.textBaseline = 'top';
-  sctx.fillText('🐦 PIGEON CATCHER', 256, 24);
-  // Big counter
-  sctx.fillStyle = caughtCount === TOTAL_PIGEONS ? '#ffd040' : '#ffffff';
-  sctx.shadowColor = caughtCount === TOTAL_PIGEONS ? '#ffd040' : '#a020ff';
+  sctx.fillText('👽 ALIEN PIGEON ATTACK', 256, 18);
+  sctx.fillStyle = killCount === TOTAL_ALIENS ? '#ffd040' : '#ffffff';
+  sctx.shadowColor = killCount === TOTAL_ALIENS ? '#ffd040' : '#a020ff';
   sctx.shadowBlur = 18;
-  sctx.font = 'bold 110px monospace';
-  sctx.fillText(caughtCount + ' / ' + TOTAL_PIGEONS, 256, 70);
+  sctx.font = 'bold 78px monospace';
+  sctx.fillText(killCount + ' / ' + TOTAL_ALIENS, 256, 56);
   sctx.shadowBlur = 0;
-  // Sub text
+  // HP hearts
+  sctx.font = 'bold 36px monospace';
+  sctx.fillStyle = '#ff4060';
+  let hpStr = '';
+  for (let i = 0; i < MAX_HP; i++) hpStr += (i < hp ? '❤' : '🖤');
+  sctx.fillText(hpStr, 256, 150);
   sctx.fillStyle = '#aaaaaa';
-  sctx.font = '20px sans-serif';
-  sctx.fillText(extraLine || 'GET CLOSE · TRIGGER (or F) TO CATCH', 256, 210);
+  sctx.font = '18px sans-serif';
+  sctx.fillText(extraLine || 'PUXE O ESTILINGUE · SOLTE PRA ATIRAR', 256, 215);
   scoreTex.needsUpdate = true;
 }
+let killCount = 0;
+let hp = MAX_HP;
 drawScore();
 const scoreBoard = new THREE.Mesh(
-  new THREE.PlaneGeometry(2.0, 1.0),
+  new THREE.PlaneGeometry(2.2, 1.1),
   new THREE.MeshBasicMaterial({map: scoreTex, transparent:true})
 );
-scoreBoard.position.set(0, ROOF_Y + 2.6, ELEV_Z + 1.4);
+scoreBoard.position.set(0, ROOF_Y + 2.8, ELEV_Z + 1.4);
 scene.add(scoreBoard);
 
 // =============================================================================
@@ -969,28 +675,218 @@ cameraRig.add(controller2);
 
 function makeCtrlVisual(color) {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(0.045, 0.05, 0.13),
-    new THREE.MeshLambertMaterial({color})
-  );
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.05, 0.13), new THREE.MeshLambertMaterial({color}));
   g.add(body);
-  const grip = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.015, 0.015, 0.06, 8),
-    new THREE.MeshLambertMaterial({color:0x202020})
-  );
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.06, 8), new THREE.MeshLambertMaterial({color:0x202020}));
   grip.rotation.x = Math.PI/2.5;
   grip.position.set(0, -0.04, 0.02);
   g.add(grip);
   return g;
 }
-controller1.add(makeCtrlVisual(0x40c0ff));
-controller2.add(makeCtrlVisual(0xff4080));
+const ctrlVis1 = makeCtrlVisual(0x40c0ff); controller1.add(ctrlVis1);
+const ctrlVis2 = makeCtrlVisual(0xff4080); controller2.add(ctrlVis2);
 
-const rayGeo = new THREE.BufferGeometry().setFromPoints([
-  new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1.5)
-]);
-const rayLine = new THREE.Line(rayGeo, new THREE.LineBasicMaterial({color:0xff80a0, transparent:true, opacity:0.5}));
-controller2.add(rayLine);
+// Right/left handedness will be detected on session start
+let rightCtrl = controller2;
+let leftCtrl = controller1;
+
+// =============================================================================
+// SLINGSHOT — child of right controller
+// =============================================================================
+const slingshot = new THREE.Group();
+// Handle (cabo) — the part the right hand holds, extends downward in controller-local space
+const slHandle = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.018, 0.022, 0.12, 10),
+  new THREE.MeshLambertMaterial({color:0x6a4828})
+);
+slHandle.position.set(0, -0.02, 0);
+slHandle.rotation.x = 0; // along Y
+slingshot.add(slHandle);
+// Handle wrap (leather)
+const slWrap = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.024, 0.024, 0.08, 10),
+  new THREE.MeshLambertMaterial({color:0x281610})
+);
+slWrap.position.set(0, -0.02, 0);
+slingshot.add(slWrap);
+// Y-fork: two arms diverging upward
+const armMat = new THREE.MeshLambertMaterial({color:0x6a4828});
+const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.018, 0.13, 8), armMat);
+armL.position.set(-0.035, 0.10, 0);
+armL.rotation.z = 0.3;
+slingshot.add(armL);
+const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.018, 0.13, 8), armMat);
+armR.position.set(0.035, 0.10, 0);
+armR.rotation.z = -0.3;
+slingshot.add(armR);
+// Fork tips (where the elastic attaches)
+const tipL = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), new THREE.MeshLambertMaterial({color:0x402818}));
+tipL.position.set(-0.058, 0.165, 0);
+slingshot.add(tipL);
+const tipR = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), new THREE.MeshLambertMaterial({color:0x402818}));
+tipR.position.set(0.058, 0.165, 0);
+slingshot.add(tipR);
+slingshot.visible = false;
+scene.add(slingshot);
+
+// Pouch (the saquinho holding the projectile)
+const pouchMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(0.045, 0.025, 0.025),
+  new THREE.MeshLambertMaterial({color:0x382010})
+);
+pouchMesh.visible = false;
+scene.add(pouchMesh);
+
+// Pouch pebble (visible inside pouch when ready to fire)
+const pebbleReadyMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(0.014, 10, 8),
+  new THREE.MeshLambertMaterial({color:0x404048})
+);
+pebbleReadyMesh.visible = false;
+scene.add(pebbleReadyMesh);
+
+// Elastic strands
+const elasticMat = new THREE.LineBasicMaterial({color:0x301812});
+const elasticGeoL = new THREE.BufferGeometry();
+elasticGeoL.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0,0,0,0], 3));
+const elasticL = new THREE.Line(elasticGeoL, elasticMat);
+scene.add(elasticL);
+const elasticGeoR = new THREE.BufferGeometry();
+elasticGeoR.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0,0,0,0], 3));
+const elasticR = new THREE.Line(elasticGeoR, elasticMat);
+scene.add(elasticR);
+
+// Pouch state
+let pouchGrabbed = false;
+const POUCH_REST_LOCAL = new THREE.Vector3(0, 0.165, -0.005);
+function getPouchRestWorld() {
+  const v = POUCH_REST_LOCAL.clone();
+  rightCtrl.localToWorld(v);
+  return v;
+}
+function getPouchPosWorld() {
+  if (pouchGrabbed) {
+    const lh = new THREE.Vector3();
+    leftCtrl.getWorldPosition(lh);
+    return lh;
+  }
+  return getPouchRestWorld();
+}
+
+// =============================================================================
+// PROJECTILES
+// =============================================================================
+const projectiles = [];
+function makeProjectile() {
+  const g = new THREE.Mesh(
+    new THREE.SphereGeometry(0.04, 10, 8),
+    new THREE.MeshLambertMaterial({color:0x404048})
+  );
+  scene.add(g);
+  return g;
+}
+
+function firePouch() {
+  const restW = getPouchRestWorld();
+  const pouchW = pouchMesh.position.clone();
+  const pull = restW.clone().sub(pouchW);
+  const dist = pull.length();
+  if (dist < 0.04) return; // not enough pull
+  const speed = Math.min(dist * SHOT_SPEED_FACTOR, MAX_SHOT_SPEED);
+  const dir = pull.normalize();
+  const proj = makeProjectile();
+  proj.position.copy(pouchW);
+  proj.userData.vel = dir.multiplyScalar(speed);
+  proj.userData.life = 0;
+  projectiles.push(proj);
+  playSlingshotRelease();
+  pulseController(leftCtrl, 0.6, 80);
+  pulseController(rightCtrl, 0.4, 60);
+}
+
+// =============================================================================
+// ALIEN PIGEONS
+// =============================================================================
+const aliens = [];
+let totalAlienSpawned = 0;
+let lastAlienSpawnT = 0;
+
+function makeAlienPigeon() {
+  const g = new THREE.Group();
+  // Body — sickly purple-grey
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(0.10, 12, 8),
+    new THREE.MeshLambertMaterial({color:0x382838})
+  );
+  body.scale.set(1, 0.85, 1.5);
+  g.add(body);
+  // Head
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.062, 10, 8), new THREE.MeshLambertMaterial({color:0x201828}));
+  head.position.set(0, 0.085, 0.13);
+  g.add(head);
+  // Glowing red eyes
+  const eyeMat = new THREE.MeshBasicMaterial({color:0xff2020});
+  const eyeGeo = new THREE.SphereGeometry(0.020, 8, 6);
+  const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.027, 0.098, 0.165);
+  const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.027, 0.098, 0.165);
+  g.add(eyeL); g.add(eyeR);
+  // Antenna
+  const antS = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.08, 6), new THREE.MeshLambertMaterial({color:0x202020}));
+  antS.position.set(0, 0.16, 0.11);
+  g.add(antS);
+  const antT = new THREE.Mesh(new THREE.SphereGeometry(0.020, 8, 6), new THREE.MeshBasicMaterial({color:0x80ff20}));
+  antT.position.set(0, 0.21, 0.11);
+  g.add(antT);
+  // Sharp dark beak
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.055, 6), new THREE.MeshLambertMaterial({color:0x303030}));
+  beak.rotation.x = Math.PI/2;
+  beak.position.set(0, 0.078, 0.21);
+  g.add(beak);
+  // Open wings (animated)
+  const wingMat = new THREE.MeshLambertMaterial({color:0x282030});
+  const wingL = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.025, 0.10), wingMat);
+  wingL.position.set(-0.15, 0.04, 0);
+  wingL.rotation.z = 0.2;
+  g.add(wingL);
+  const wingR = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.025, 0.10), wingMat);
+  wingR.position.set(0.15, 0.04, 0);
+  wingR.rotation.z = -0.2;
+  g.add(wingR);
+  // Tail
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.018, 0.09), wingMat);
+  tail.position.set(0, 0.025, -0.16);
+  g.add(tail);
+
+  return {
+    group: g,
+    body, head, eyeL, eyeR, antT,
+    wingL, wingR,
+    dead: false,
+    deadT: 0,
+    deathVel: new THREE.Vector3(),
+    attackCD: 1.5, // grace period after spawn
+    wingFlapPhase: Math.random() * 5,
+    targetOffset: new THREE.Vector3(
+      (Math.random()-0.5)*0.6,
+      Math.random()*0.4,
+      (Math.random()-0.5)*0.6
+    ),
+    speed: 1.5 + Math.random()*0.6
+  };
+}
+
+function spawnAlien() {
+  if (totalAlienSpawned >= TOTAL_ALIENS) return;
+  totalAlienSpawned++;
+  const a = makeAlienPigeon();
+  const angle = Math.random() * Math.PI * 2;
+  const dist = 14 + Math.random() * 6;
+  const yOff = (Math.random() - 0.3) * 5;
+  a.group.position.set(Math.cos(angle) * dist, ROOF_Y + 1.6 + yOff, Math.sin(angle) * dist);
+  scene.add(a.group);
+  aliens.push(a);
+  playAlienSpawn();
+}
 
 // =============================================================================
 // AUDIO
@@ -1015,15 +911,30 @@ function tone(freq, dur, type='sine', vol=0.2, attack=0.005, freqEnd) {
   const g = audioCtx.createGain();
   osc.type = type;
   osc.frequency.setValueAtTime(freq, t0);
-  if (freqEnd !== undefined) {
-    osc.frequency.exponentialRampToValueAtTime(freqEnd, t0 + dur);
-  }
+  if (freqEnd !== undefined) osc.frequency.exponentialRampToValueAtTime(freqEnd, t0 + dur);
   g.gain.setValueAtTime(0, t0);
   g.gain.linearRampToValueAtTime(vol, t0 + attack);
   g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
   osc.connect(g).connect(masterGain);
-  osc.start(t0);
-  osc.stop(t0 + dur + 0.05);
+  osc.start(t0); osc.stop(t0 + dur + 0.05);
+}
+
+function noiseBurst(dur, vol, filterType, filterFreq, q, decay) {
+  if (!audioCtx) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * dur, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * Math.exp(-i/d.length * (decay || 4));
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const filt = audioCtx.createBiquadFilter();
+  filt.type = filterType || 'bandpass';
+  filt.frequency.value = filterFreq;
+  filt.Q.value = q || 2;
+  const g = audioCtx.createGain();
+  g.gain.value = vol;
+  src.connect(filt).connect(g).connect(masterGain);
+  src.start();
+  return {src, g};
 }
 
 function playClick() { tone(1400, 0.06, 'square', 0.18); tone(900, 0.04, 'square', 0.1); }
@@ -1031,33 +942,42 @@ function playDing() {
   tone(880, 0.7, 'sine', 0.3, 0.01);
   setTimeout(() => tone(1320, 0.8, 'sine', 0.25, 0.01), 130);
 }
-function playCatch() {
-  // Quick rising arpeggio
-  tone(660, 0.12, 'square', 0.16);
-  setTimeout(() => tone(880, 0.12, 'square', 0.16), 60);
-  setTimeout(() => tone(1320, 0.18, 'square', 0.18), 120);
+
+function playSlingshotPull() {
+  // creak/stretch sound
+  noiseBurst(0.12, 0.15, 'bandpass', 600, 5);
+}
+function playSlingshotRelease() {
+  // sharp snap
+  tone(1800, 0.05, 'square', 0.2);
+  noiseBurst(0.08, 0.4, 'highpass', 1200, 1);
+  tone(180, 0.18, 'sine', 0.15, 0.005, 60);
+}
+function playAlienSpawn() {
+  // Eerie descending tone
+  tone(440, 0.4, 'sawtooth', 0.10, 0.01, 220);
+  setTimeout(() => tone(330, 0.3, 'sawtooth', 0.08, 0.01, 180), 80);
+}
+function playAlienDeath() {
+  // Squawk + descending
+  tone(800, 0.08, 'square', 0.18, 0.005, 500);
+  setTimeout(() => tone(400, 0.15, 'sawtooth', 0.15, 0.005, 100), 60);
+  noiseBurst(0.2, 0.25, 'bandpass', 600, 3);
+}
+function playPlayerHit() {
+  // Low boom + short tone
+  tone(60, 0.4, 'sine', 0.5, 0.005);
+  noiseBurst(0.3, 0.4, 'lowpass', 200, 1);
 }
 function playVictory() {
-  // Triumphant fanfare
   const notes = [523, 659, 784, 1047, 1319];
   notes.forEach((f, i) => setTimeout(() => tone(f, 0.5, 'square', 0.18), i * 110));
   setTimeout(() => { tone(1568, 0.9, 'square', 0.22); tone(1047, 0.9, 'sine', 0.18); }, 660);
 }
-function playFirework() {
-  if (!audioCtx) return;
-  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*0.4, audioCtx.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * Math.exp(-i/d.length * 4);
-  const src = audioCtx.createBufferSource();
-  src.buffer = buf;
-  const filt = audioCtx.createBiquadFilter();
-  filt.type = 'bandpass';
-  filt.frequency.value = 800 + Math.random()*1200;
-  filt.Q.value = 2;
-  const g = audioCtx.createGain();
-  g.gain.value = 0.4;
-  src.connect(filt).connect(g).connect(masterGain);
-  src.start();
+function playFirework() { noiseBurst(0.4, 0.4, 'bandpass', 800 + Math.random()*1200, 2); }
+function playSplat() {
+  noiseBurst(0.5, 1.0, 'lowpass', 90, 1, 6);
+  tone(45, 0.6, 'sine', 0.4, 0.005);
 }
 
 // Wind
@@ -1073,13 +993,10 @@ function startWind() {
     d[i] = last * 5;
   }
   windNoise = audioCtx.createBufferSource();
-  windNoise.buffer = buf;
-  windNoise.loop = true;
+  windNoise.buffer = buf; windNoise.loop = true;
   windFilt = audioCtx.createBiquadFilter();
-  windFilt.type = 'lowpass';
-  windFilt.frequency.value = 500;
-  windGain = audioCtx.createGain();
-  windGain.gain.value = 0;
+  windFilt.type = 'lowpass'; windFilt.frequency.value = 500;
+  windGain = audioCtx.createGain(); windGain.gain.value = 0;
   windNoise.connect(windFilt).connect(windGain).connect(masterGain);
   windNoise.start();
 }
@@ -1091,19 +1008,15 @@ function setWind(target) {
   windGain.gain.linearRampToValueAtTime(target, t + 0.4);
 }
 
-// Elevator hum
 let elevHum=null, elevHumGain=null;
 function startElevHum() {
   if (!audioCtx) return;
   if (elevHum) stopElevHum();
   elevHum = audioCtx.createOscillator();
-  elevHum.type = 'sawtooth';
-  elevHum.frequency.value = 60;
-  elevHumGain = audioCtx.createGain();
-  elevHumGain.gain.value = 0;
+  elevHum.type = 'sawtooth'; elevHum.frequency.value = 60;
+  elevHumGain = audioCtx.createGain(); elevHumGain.gain.value = 0;
   const filt = audioCtx.createBiquadFilter();
-  filt.type = 'lowpass';
-  filt.frequency.value = 200;
+  filt.type = 'lowpass'; filt.frequency.value = 200;
   elevHum.connect(filt).connect(elevHumGain).connect(masterGain);
   elevHum.start();
   elevHumGain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.4);
@@ -1114,65 +1027,6 @@ function stopElevHum() {
   ehg.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.4);
   setTimeout(() => { try { eh.stop(); } catch(e){} }, 500);
   elevHum = null; elevHumGain = null;
-}
-
-function playWoodCreak() {
-  if (!audioCtx) return;
-  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*0.5, audioCtx.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * Math.exp(-i/d.length * 1.5);
-  const src = audioCtx.createBufferSource();
-  src.buffer = buf;
-  src.playbackRate.value = 0.35 + Math.random()*0.4;
-  const filt = audioCtx.createBiquadFilter();
-  filt.type = 'bandpass';
-  filt.frequency.value = 220 + Math.random()*200;
-  filt.Q.value = 4;
-  const g = audioCtx.createGain();
-  g.gain.value = 0.65;
-  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
-  src.connect(filt).connect(g).connect(masterGain);
-  src.start();
-}
-
-function playSplat() {
-  if (!audioCtx) return;
-  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*0.5, audioCtx.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * Math.exp(-i/d.length * 6);
-  const src = audioCtx.createBufferSource();
-  src.buffer = buf;
-  const filt = audioCtx.createBiquadFilter();
-  filt.type = 'lowpass';
-  filt.frequency.value = 90;
-  const g = audioCtx.createGain();
-  g.gain.value = 1.0;
-  src.connect(filt).connect(g).connect(masterGain);
-  src.start();
-  tone(45, 0.6, 'sine', 0.4, 0.005);
-}
-
-function playFlap() {
-  if (!audioCtx) return;
-  const t0 = audioCtx.currentTime;
-  for (let i = 0; i < 6; i++) {
-    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*0.06, audioCtx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let j = 0; j < d.length; j++) d[j] = (Math.random()*2-1) * Math.exp(-j/d.length * 4);
-    const src = audioCtx.createBufferSource();
-    src.buffer = buf;
-    const g = audioCtx.createGain();
-    g.gain.value = 0.25;
-    src.connect(g).connect(masterGain);
-    src.start(t0 + i*0.10);
-  }
-}
-
-function playCoo() {
-  if (!audioCtx) return;
-  // Pigeon coo: low pitch with slight modulation
-  tone(280, 0.15, 'triangle', 0.08);
-  setTimeout(() => tone(220, 0.18, 'triangle', 0.08), 110);
 }
 
 // =============================================================================
@@ -1188,10 +1042,7 @@ function spawnFirework() {
   const color = [0xffd040, 0xff60a0, 0x40e0ff, 0xa0ff60, 0xffffff][Math.floor(Math.random()*5)];
   const particles = [];
   for (let i = 0; i < 18; i++) {
-    const p = new THREE.Mesh(
-      new THREE.SphereGeometry(0.06, 6, 4),
-      new THREE.MeshBasicMaterial({color})
-    );
+    const p = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 4), new THREE.MeshBasicMaterial({color}));
     p.position.copy(center);
     const phi = Math.random() * Math.PI * 2;
     const theta = Math.random() * Math.PI;
@@ -1206,6 +1057,28 @@ function spawnFirework() {
   }
   fireworks.push({ particles, t: 0 });
   playFirework();
+}
+
+// Feathers (alien death)
+const feathers = [];
+function spawnFeathers(pos) {
+  for (let i = 0; i < 10; i++) {
+    const f = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.08, 0.025),
+      new THREE.MeshBasicMaterial({color:0x282030, side:THREE.DoubleSide, transparent:true})
+    );
+    f.position.copy(pos);
+    f.rotation.set(Math.random()*Math.PI*2, Math.random()*Math.PI*2, Math.random()*Math.PI*2);
+    f.userData.vel = new THREE.Vector3(
+      (Math.random()-0.5)*1.5,
+      0.5 + Math.random()*1.0,
+      (Math.random()-0.5)*1.5
+    );
+    f.userData.rot = new THREE.Vector3(Math.random()*5-2.5, Math.random()*5-2.5, Math.random()*5-2.5);
+    f.userData.life = 0;
+    scene.add(f);
+    feathers.push(f);
+  }
 }
 
 // =============================================================================
@@ -1223,41 +1096,57 @@ function pulseAll(intensity, duration) {
 function pulseController(ctrl, intensity, duration) {
   const sess = renderer.xr.getSession();
   if (!sess) return;
-  const idx = ctrl === controller1 ? 0 : 1;
-  if (sess.inputSources[idx] && sess.inputSources[idx].gamepad &&
-      sess.inputSources[idx].gamepad.hapticActuators &&
-      sess.inputSources[idx].gamepad.hapticActuators[0]) {
-    try { sess.inputSources[idx].gamepad.hapticActuators[0].pulse(intensity, duration); } catch(e){}
+  for (const src of sess.inputSources) {
+    const isMatch = (ctrl === leftCtrl && src.handedness === 'left') ||
+                    (ctrl === rightCtrl && src.handedness === 'right');
+    if (isMatch && src.gamepad && src.gamepad.hapticActuators && src.gamepad.hapticActuators[0]) {
+      try { src.gamepad.hapticActuators[0].pulse(intensity, duration); } catch(e){}
+    }
   }
 }
 
 // =============================================================================
 // GAME STATE
 // =============================================================================
-let state = 'elevator_idle'; // elevator_idle | rising | top | falling | splat | victory
+let state = 'elevator_idle';
 let stateT = 0;
 let elevY = 0;
 let currentFloor = 1;
 let fallVel = 0;
 let lastCreakT = 0;
-let lastCooT = 0;
 let lastFireworkT = 0;
+let pullTickT = 0;
 
 const fadeEl = document.getElementById('fade');
 const winEl = document.getElementById('win');
 const instrEl = document.getElementById('instr');
 const scoreDEl = document.getElementById('score-d');
+const crosshairEl = document.getElementById('crosshair');
+const hurtEl = document.getElementById('hurt-flash');
+
 function setInstr(text) {
   if (text) { instrEl.textContent = text; instrEl.classList.add('show'); }
   else { instrEl.classList.remove('show'); }
 }
+function flashHurt() {
+  hurtEl.classList.add('show');
+  setTimeout(() => hurtEl.classList.remove('show'), 220);
+}
 function updateScoreDOM() {
-  if (!renderer.xr.isPresenting && state !== 'elevator_idle' && state !== 'rising') {
+  const showHud = !renderer.xr.isPresenting && (state === 'top' || state === 'victory' || state === 'splat');
+  if (showHud) {
     scoreDEl.classList.add('show');
-    scoreDEl.querySelector('.val').textContent = caughtCount;
+    scoreDEl.querySelector('.val').textContent = killCount;
+    let hpHtml = '';
+    for (let i = 0; i < MAX_HP; i++) {
+      hpHtml += i < hp ? '❤' : '<span class="empty">🖤</span>';
+    }
+    scoreDEl.querySelector('.hp').innerHTML = hpHtml;
   } else {
     scoreDEl.classList.remove('show');
   }
+  if (!renderer.xr.isPresenting && state === 'top') crosshairEl.classList.add('show');
+  else crosshairEl.classList.remove('show');
 }
 
 function detachRigToWorld() {
@@ -1280,7 +1169,7 @@ function reattachRigToElevator() {
 }
 
 // =============================================================================
-// BUTTON RAYCAST
+// BUTTON RAYCAST (elevator)
 // =============================================================================
 const tmpMatrix = new THREE.Matrix4();
 const raycaster = new THREE.Raycaster();
@@ -1315,99 +1204,73 @@ function pressButton() {
 }
 
 // =============================================================================
-// PIGEON CATCH
+// ALIEN COMBAT
 // =============================================================================
-function tryCatchFromController(controller) {
-  if (state !== 'top') return;
-  const cw = new THREE.Vector3();
-  controller.getWorldPosition(cw);
-  for (const p of pigeons) {
-    if (p.caught) continue;
-    if (cw.distanceTo(p.group.position) < CATCH_DIST) {
-      catchPigeon(p, controller);
-      return;
-    }
-  }
-}
-
-function tryCatchFromHead() {
-  if (state !== 'top') return;
-  // Use camera world pos (head) but extend forward by 0.4m so it feels like reaching
-  const hp = new THREE.Vector3();
-  camera.getWorldPosition(hp);
-  const fwd = new THREE.Vector3();
-  camera.getWorldDirection(fwd);
-  hp.addScaledVector(fwd, 0.4);
-  for (const p of pigeons) {
-    if (p.caught) continue;
-    if (hp.distanceTo(p.group.position) < CATCH_DIST + 0.2) {
-      catchPigeon(p, null);
-      return;
-    }
-  }
-}
-
-function catchPigeon(p, controller) {
-  p.caught = true;
-  p.flyT = 0;
-  // Velocity: shoot up and slightly random horizontal
-  p.flyVel.set((Math.random()-0.5) * 1.5, 2.5 + Math.random(), (Math.random()-0.5) * 1.5);
-  caughtCount++;
-  playCatch();
-  playFlap();
+function killAlien(a) {
+  a.dead = true;
+  a.deadT = 0;
+  a.deathVel.set((Math.random()-0.5)*2, 0.5, (Math.random()-0.5)*2);
+  killCount++;
+  spawnFeathers(a.group.position);
+  playAlienDeath();
   drawScore();
   updateScoreDOM();
-  if (controller) pulseController(controller, 0.7, 100);
-  else pulseAll(0.5, 80);
-  if (caughtCount >= TOTAL_PIGEONS) {
-    state = 'victory';
-    stateT = 0;
-    drawScore();
-    setInstr(null);
-    winEl.classList.add('show');
-    setTimeout(() => playVictory(), 200);
-  } else {
-    setInstr(`${caughtCount}/${TOTAL_PIGEONS}  ·  pega as próximas`);
+  if (killCount >= TOTAL_ALIENS && !aliens.some(x => !x.dead)) {
+    enterVictory();
   }
 }
 
-// =============================================================================
-// FALL DETECTION
-// =============================================================================
-function checkFall() {
+function alienHitsPlayer(a, headPos) {
+  hp = Math.max(0, hp - 1);
+  a.attackCD = 1.8;
+  // Knockback on alien
+  const dir = a.group.position.clone().sub(headPos).normalize();
+  a.group.position.addScaledVector(dir, 1.8);
+  pulseAll(0.95, 220);
+  flashHurt();
+  playPlayerHit();
+  drawScore();
+  updateScoreDOM();
+  if (hp <= 0) {
+    // Trigger fall (simulate being knocked off)
+    triggerFall();
+  }
+}
+
+function triggerFall() {
+  if (state !== 'top') return;
+  state = 'falling';
+  stateT = 0;
+  fallVel = 0;
+  pulseAll(0.95, 280);
+  if (audioCtx) {
+    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*2.5, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < d.length; i++) {
+      const w = Math.random()*2-1; last = last*0.93 + w*0.07; d[i] = last * 5;
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const filt = audioCtx.createBiquadFilter();
+    filt.type = 'bandpass';
+    filt.frequency.setValueAtTime(400, audioCtx.currentTime);
+    filt.frequency.linearRampToValueAtTime(2200, audioCtx.currentTime + 2.0);
+    filt.Q.value = 4;
+    const g = audioCtx.createGain(); g.gain.value = 0.5;
+    src.connect(filt).connect(g).connect(masterGain);
+    src.start();
+    window.__fallNoise = src;
+  }
+}
+
+function checkFallOffPlank() {
   if (state !== 'top' || cameraRig.parent !== scene) return;
   const x = cameraRig.position.x;
   const z = cameraRig.position.z;
   const onRoof = Math.abs(x) < ROOF_HALF && Math.abs(z) < ROOF_HALF;
   const onPlank = Math.abs(x) < PLANK_W/2 + 0.20 && z > PLANK_BACK_Z && z < PLANK_FRONT_Z;
-  if (!onRoof && !onPlank) {
-    state = 'falling';
-    stateT = 0;
-    fallVel = 0;
-    pulseAll(0.95, 280);
-    if (audioCtx) {
-      const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*2.5, audioCtx.sampleRate);
-      const d = buf.getChannelData(0);
-      let last = 0;
-      for (let i = 0; i < d.length; i++) {
-        const w = Math.random()*2-1;
-        last = last*0.93 + w*0.07;
-        d[i] = last * 5;
-      }
-      const src = audioCtx.createBufferSource();
-      src.buffer = buf;
-      const filt = audioCtx.createBiquadFilter();
-      filt.type = 'bandpass';
-      filt.frequency.setValueAtTime(400, audioCtx.currentTime);
-      filt.frequency.linearRampToValueAtTime(2200, audioCtx.currentTime + 2.0);
-      filt.Q.value = 4;
-      const g = audioCtx.createGain();
-      g.gain.value = 0.5;
-      src.connect(filt).connect(g).connect(masterGain);
-      src.start();
-      window.__fallNoise = src;
-    }
-  }
+  if (!onRoof && !onPlank) triggerFall();
 }
 
 function updateFall(dt) {
@@ -1425,6 +1288,15 @@ function updateFall(dt) {
   }
 }
 
+function enterVictory() {
+  state = 'victory';
+  stateT = 0;
+  drawScore();
+  setInstr(null);
+  winEl.classList.add('show');
+  setTimeout(() => playVictory(), 200);
+}
+
 function respawn() {
   fadeEl.classList.remove('show');
   winEl.classList.remove('show');
@@ -1440,32 +1312,53 @@ function respawn() {
   buttonRing.material.color.setHex(0xff8050);
   buttonMesh.material.color.setHex(0xff3020);
   setInstr('Aperte o botão pra subir');
-  // Reset pigeons
-  caughtCount = 0;
-  for (let i = 0; i < pigeons.length; i++) {
-    const p = pigeons[i];
-    const spec = pigeonSpecs[i];
-    p.caught = false;
-    p.flyT = 0;
-    p.group.visible = true;
-    p.group.position.set(spec.x, p.baseY, spec.z);
-    p.group.rotation.set(0, (Math.random() - 0.5) * 1.0, 0);
-  }
+  // Reset combat
+  killCount = 0;
+  hp = MAX_HP;
+  totalAlienSpawned = 0;
+  for (const a of aliens) scene.remove(a.group);
+  aliens.length = 0;
+  for (const p of projectiles) scene.remove(p);
+  projectiles.length = 0;
+  for (const f of feathers) scene.remove(f);
+  feathers.length = 0;
+  pouchGrabbed = false;
   drawScore();
   updateScoreDOM();
 }
 
 // =============================================================================
-// CONTROLLERS - input handlers
+// CONTROLLER INPUT
 // =============================================================================
-controller1.addEventListener('selectstart', () => {
-  if (state === 'elevator_idle') { if (buttonHit(controller1)) pressButton(); }
-  else if (state === 'top') tryCatchFromController(controller1);
-});
-controller2.addEventListener('selectstart', () => {
-  if (state === 'elevator_idle') { if (buttonHit(controller2)) pressButton(); }
-  else if (state === 'top') tryCatchFromController(controller2);
-});
+controller1.addEventListener('selectstart', () => onTriggerStart(controller1));
+controller2.addEventListener('selectstart', () => onTriggerStart(controller2));
+controller1.addEventListener('selectend', () => onTriggerEnd(controller1));
+controller2.addEventListener('selectend', () => onTriggerEnd(controller2));
+
+function onTriggerStart(ctrl) {
+  if (state === 'elevator_idle') {
+    if (buttonHit(ctrl)) pressButton();
+    return;
+  }
+  if (state === 'top' && ctrl === leftCtrl) {
+    // Try to grab the pouch
+    const lh = new THREE.Vector3();
+    leftCtrl.getWorldPosition(lh);
+    const restW = getPouchRestWorld();
+    if (lh.distanceTo(restW) < POUCH_GRAB_DIST) {
+      pouchGrabbed = true;
+      playSlingshotPull();
+      pulseController(leftCtrl, 0.4, 50);
+    }
+  }
+}
+
+function onTriggerEnd(ctrl) {
+  if (state === 'top' && ctrl === leftCtrl && pouchGrabbed) {
+    firePouch();
+    pouchGrabbed = false;
+  }
+}
 
 // =============================================================================
 // LOCOMOTION (VR thumbstick)
@@ -1504,17 +1397,11 @@ function vrLocomotion(dt) {
 // DESKTOP FALLBACK
 // =============================================================================
 const keys = {};
-let lastFKey = 0;
+let lastShotT = 0;
 addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'KeyE' || e.code === 'Space') {
     if (state === 'elevator_idle') pressButton();
-  }
-  if (e.code === 'KeyF') {
-    if (state === 'top' && performance.now() - lastFKey > 200) {
-      tryCatchFromHead();
-      lastFKey = performance.now();
-    }
   }
   if (e.code === 'KeyR' && (state === 'splat' || state === 'falling' || state === 'victory')) {
     if (state === 'falling') { state = 'splat'; stateT = 99; }
@@ -1542,8 +1429,28 @@ document.addEventListener('pointerlockchange', () => {
 renderer.domElement.addEventListener('click', () => {
   if (!renderer.xr.isPresenting && !mouseLocked) {
     try { renderer.domElement.requestPointerLock(); } catch(e){}
+    return;
+  }
+  if (state === 'top' && performance.now() - lastShotT > 250) {
+    desktopShoot();
+    lastShotT = performance.now();
   }
 });
+
+function desktopShoot() {
+  // Spawn projectile from camera, direction = camera forward
+  const camPos = new THREE.Vector3();
+  camera.getWorldPosition(camPos);
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const proj = makeProjectile();
+  // Start slightly forward of camera, slightly down (like firing from hip)
+  proj.position.copy(camPos).addScaledVector(dir, 0.3);
+  proj.userData.vel = dir.clone().multiplyScalar(MAX_SHOT_SPEED);
+  proj.userData.life = 0;
+  projectiles.push(proj);
+  playSlingshotRelease();
+}
 
 let yaw = 0, pitch = 0;
 addEventListener('mousemove', e => {
@@ -1573,11 +1480,27 @@ function desktopMove(dt) {
   cameraRig.position.z += (dir.z * (-mz) + right.z * mx) * speed * dt;
 }
 
-// VR session lifecycle
 renderer.xr.addEventListener('sessionstart', () => {
   initAudio();
   startEl.style.display = 'none';
   setInstr('Aperte o botão vermelho pra subir');
+  // Detect handedness
+  setTimeout(() => {
+    const sess = renderer.xr.getSession();
+    if (!sess) return;
+    let foundLeft = null, foundRight = null;
+    for (let i = 0; i < sess.inputSources.length; i++) {
+      const src = sess.inputSources[i];
+      const ctrl = (src === sess.inputSources[0]) ? controller1 : controller2;
+      // Best-effort mapping by index
+      const idx = Array.from(sess.inputSources).indexOf(src);
+      const c = idx === 0 ? controller1 : controller2;
+      if (src.handedness === 'right') foundRight = c;
+      else if (src.handedness === 'left') foundLeft = c;
+    }
+    if (foundRight) rightCtrl = foundRight;
+    if (foundLeft) leftCtrl = foundLeft;
+  }, 200);
 });
 
 // =============================================================================
@@ -1585,15 +1508,15 @@ renderer.xr.addEventListener('sessionstart', () => {
 // =============================================================================
 const clock = new THREE.Clock();
 let heliAngle = 0;
+let planeAngle = 0;
 let nowMs = 0;
-let mastBlink = false;
 
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
   stateT += dt;
   nowMs += dt * 1000;
 
-  // Mast blink (every 1s)
+  // Mast blink
   if (Math.floor(nowMs / 700) % 2 === 0) {
     mastTip.material.color.setHex(0xff2020);
     mastTip.scale.setScalar(1);
@@ -1601,7 +1524,6 @@ renderer.setAnimationLoop(() => {
     mastTip.material.color.setHex(0x802020);
     mastTip.scale.setScalar(0.7);
   }
-  // Crossbar lights (corners) — could add but skip for perf
 
   // Cars
   for (const c of cars) {
@@ -1618,89 +1540,197 @@ renderer.setAnimationLoop(() => {
   heliAngle += dt * 0.07;
   heli.position.set(Math.cos(heliAngle)*200, ROOF_Y - 70 + Math.sin(heliAngle*0.7)*15, Math.sin(heliAngle)*200);
   heli.rotation.y = -heliAngle + Math.PI/2;
-  heliRotor.rotation.y += dt * 35;
-  heliRotorB.rotation.y += dt * 35;
+  heliRotor.rotation.y += dt * 35; heliRotorB.rotation.y += dt * 35;
   heliTailRotor.rotation.x += dt * 50;
-  // Helicopter nav lights blink
   const heliBlink = Math.floor(nowMs / 400) % 2 === 0;
   heliRedLight.material.color.setHex(heliBlink ? 0xff2020 : 0x400000);
   heliGreenLight.material.color.setHex(heliBlink ? 0x20ff20 : 0x004000);
 
-  // Airplane (slow distant)
+  // Plane
   planeAngle += dt * 0.012;
   plane.position.set(Math.cos(planeAngle) * 600, ROOF_Y + 80, Math.sin(planeAngle) * 600);
   plane.rotation.y = -planeAngle + Math.PI/2;
 
-  // Flock circling
-  flockAngle += dt * 0.3;
-  flock.rotation.y = flockAngle;
-  flock.position.x = 100 + Math.sin(flockAngle * 0.3) * 40;
-  flock.position.z = 80 + Math.cos(flockAngle * 0.3) * 40;
-  // wing flap on each bird (scale)
-  for (let i = 0; i < flock.children.length; i++) {
-    flock.children[i].scale.y = 1 + Math.sin(nowMs * 0.012 + i) * 0.5;
-  }
-
-  // Random window flicker
+  // Window flicker
   if (Math.random() < 0.005) {
-    const w = cityBuildings[Math.floor(Math.random() * cityBuildings.length)];
+    const w = cityWindows[Math.floor(Math.random() * cityWindows.length)];
     if (w) {
       const isDark = w.material.color.getHex() < 0x404040;
       w.material.color.setHex(isDark ? 0xffd870 : 0x202028);
     }
   }
-  // Tower windows random flicker too
-  if (Math.random() < 0.01) {
-    const w = towerWindowsLit[Math.floor(Math.random() * towerWindowsLit.length)];
-    if (w) {
-      const isLit = w.material.color.getHex() > 0x404040;
-      w.material.color.setHex(isLit ? 0x182030 : 0xffe090);
-      if (!isLit) towerWindowsLit.push(w); // keep tracking
-    }
-  }
 
-  // Pigeons (idle anim + caught fly)
-  for (let i = 0; i < pigeons.length; i++) {
-    const p = pigeons[i];
-    if (!p.caught) {
-      p.group.position.y = p.baseY + Math.sin(nowMs * 0.004 + p.bobOffset) * 0.006;
-      // Random head turn
-      p.group.rotation.y = Math.sin(nowMs * 0.0008 + p.rotPhase) * 0.6;
-      // Wing flap micro (idle, very subtle)
-    } else {
-      p.flyT += dt;
-      // Apply velocity, gravity
-      p.flyVel.y -= 1.2 * dt; // slight upward bias initially, then settle into upward
-      p.group.position.addScaledVector(p.flyVel, dt);
-      // Wing flap (rotation of wings would need access; approximate with body roll)
-      p.group.rotation.z = Math.sin(p.flyT * 30) * 0.4;
-      p.group.rotation.x = -0.3;
-      if (p.flyT > 4) p.group.visible = false;
-    }
-  }
-
-  // Pigeon coo random
-  if (state === 'top' && performance.now() - lastCooT > 4500 + Math.random() * 4000) {
-    const aliveCount = pigeons.filter(p => !p.caught).length;
-    if (aliveCount > 0) playCoo();
-    lastCooT = performance.now();
-  }
-
-  // Windsock sway
+  // Sock sway
   sock.rotation.y = Math.sin(nowMs * 0.002) * 0.15;
 
-  // Plank sway when player stands on it
-  if (state === 'top' && cameraRig.parent === scene) {
-    const px = cameraRig.position.x;
-    const pz = cameraRig.position.z;
-    const onPlank = Math.abs(px) < PLANK_W/2 + 0.18 && pz > PLANK_BACK_Z && pz < PLANK_FRONT_Z;
-    if (onPlank) {
-      const distFromBase = (pz - PLANK_BACK_Z) / PLANK_LEN;
-      plank.rotation.x = Math.sin(nowMs * 0.003) * 0.012 * distFromBase;
-      plank.rotation.z = Math.sin(nowMs * 0.0035) * 0.008 * distFromBase;
-    } else {
-      plank.rotation.x *= 0.92;
-      plank.rotation.z *= 0.92;
+  // === SLINGSHOT update (right hand visual + pouch + elastic) ===
+  const slingshotActive = state === 'top';
+  slingshot.visible = slingshotActive && renderer.xr.isPresenting;
+  pouchMesh.visible = slingshotActive && renderer.xr.isPresenting;
+  pebbleReadyMesh.visible = slingshotActive && renderer.xr.isPresenting && !pouchGrabbed;
+  elasticL.visible = slingshotActive && renderer.xr.isPresenting;
+  elasticR.visible = slingshotActive && renderer.xr.isPresenting;
+
+  if (slingshotActive && renderer.xr.isPresenting) {
+    // Sync slingshot to right controller
+    const rcwp = new THREE.Vector3();
+    const rcwq = new THREE.Quaternion();
+    rightCtrl.getWorldPosition(rcwp);
+    rightCtrl.getWorldQuaternion(rcwq);
+    slingshot.position.copy(rcwp);
+    slingshot.quaternion.copy(rcwq);
+    // Hide right controller visual since slingshot replaces it
+    if (rightCtrl === controller1) ctrlVis1.visible = false;
+    else ctrlVis2.visible = false;
+    if (leftCtrl === controller1) ctrlVis1.visible = true;
+    else ctrlVis2.visible = true;
+
+    // Pouch position
+    const pp = getPouchPosWorld();
+    pouchMesh.position.copy(pp);
+    // Pouch faces between forks and pull direction — simplify: always face camera
+    pouchMesh.lookAt(camera.getWorldPosition(new THREE.Vector3()));
+    // Pebble visible inside pouch when not pulled
+    pebbleReadyMesh.position.copy(pp);
+
+    // Elastic strands from fork tips to pouch
+    const tipLW = new THREE.Vector3(); tipL.getWorldPosition(tipLW);
+    const tipRW = new THREE.Vector3(); tipR.getWorldPosition(tipRW);
+    elasticL.geometry.setFromPoints([tipLW, pp]);
+    elasticR.geometry.setFromPoints([tipRW, pp]);
+    elasticL.geometry.attributes.position.needsUpdate = true;
+    elasticR.geometry.attributes.position.needsUpdate = true;
+
+    // Creak sound when pulling
+    if (pouchGrabbed) {
+      pullTickT += dt;
+      const restW = getPouchRestWorld();
+      const pull = pp.distanceTo(restW);
+      if (pullTickT > 0.25 + Math.random()*0.15 && pull > 0.05) {
+        playSlingshotPull();
+        pullTickT = 0;
+      }
+    }
+  } else if (slingshotActive && !renderer.xr.isPresenting) {
+    // Desktop: render slingshot at camera-relative offset (decorative)
+    const camPos = new THREE.Vector3(); camera.getWorldPosition(camPos);
+    const camQuat = new THREE.Quaternion(); camera.getWorldQuaternion(camQuat);
+    const offset = new THREE.Vector3(0.28, -0.32, -0.5);
+    offset.applyQuaternion(camQuat);
+    slingshot.position.copy(camPos).add(offset);
+    slingshot.quaternion.copy(camQuat);
+    slingshot.visible = true;
+    pouchMesh.visible = false;
+    pebbleReadyMesh.visible = false;
+    elasticL.visible = false;
+    elasticR.visible = false;
+    ctrlVis1.visible = false; ctrlVis2.visible = false;
+  } else {
+    ctrlVis1.visible = true; ctrlVis2.visible = true;
+  }
+
+  // === ALIEN SPAWN + UPDATE ===
+  if (state === 'top') {
+    if (totalAlienSpawned < TOTAL_ALIENS && performance.now() - lastAlienSpawnT > 1300) {
+      spawnAlien();
+      lastAlienSpawnT = performance.now();
+    }
+    const headPos = new THREE.Vector3();
+    camera.getWorldPosition(headPos);
+    for (let i = aliens.length - 1; i >= 0; i--) {
+      const a = aliens[i];
+      if (a.dead) {
+        a.deadT += dt;
+        a.deathVel.y -= 9.8 * dt;
+        a.group.position.addScaledVector(a.deathVel, dt);
+        a.group.rotation.x += 6 * dt;
+        a.group.rotation.z += 4 * dt;
+        if (a.deadT > 3 || a.group.position.y < ROOF_Y - 30) {
+          scene.remove(a.group);
+          aliens.splice(i, 1);
+        }
+        continue;
+      }
+      // Move toward (player + small wandering offset)
+      const target = headPos.clone().add(a.targetOffset);
+      const dir = target.clone().sub(a.group.position);
+      const dist = dir.length();
+      dir.normalize();
+      // If retreating after attack (attackCD > 1), back off slightly
+      let speed = a.speed;
+      if (a.attackCD > 1.0) speed = -speed * 0.7;
+      a.group.position.addScaledVector(dir, speed * dt);
+      // Face player (yaw only)
+      const lookTarget = headPos.clone();
+      lookTarget.y = a.group.position.y;
+      a.group.lookAt(lookTarget);
+      // Wing flap
+      a.wingFlapPhase += dt * 14;
+      const flap = Math.sin(a.wingFlapPhase) * 0.7;
+      a.wingL.rotation.z = 0.2 + flap;
+      a.wingR.rotation.z = -0.2 - flap;
+      // Antenna sway
+      a.antT.position.y = 0.21 + Math.sin(nowMs * 0.005 + a.wingFlapPhase) * 0.005;
+      // Eyes pulse
+      const eyeBright = 0.6 + Math.sin(nowMs * 0.008) * 0.4;
+      a.eyeL.material.color.setRGB(1, 0.1 * eyeBright, 0.1 * eyeBright);
+      a.eyeR.material.color.setRGB(1, 0.1 * eyeBright, 0.1 * eyeBright);
+
+      // Attack
+      if (dist < 0.9 && a.attackCD <= 0) {
+        alienHitsPlayer(a, headPos);
+      }
+      a.attackCD -= dt;
+    }
+    // Wandering offset drift
+    for (const a of aliens) {
+      if (!a.dead) {
+        a.targetOffset.x += (Math.random()-0.5) * dt * 0.5;
+        a.targetOffset.y += (Math.random()-0.5) * dt * 0.3;
+        a.targetOffset.z += (Math.random()-0.5) * dt * 0.5;
+        a.targetOffset.x = Math.max(-0.8, Math.min(0.8, a.targetOffset.x));
+        a.targetOffset.y = Math.max(-0.3, Math.min(0.7, a.targetOffset.y));
+        a.targetOffset.z = Math.max(-0.8, Math.min(0.8, a.targetOffset.z));
+      }
+    }
+  }
+
+  // === PROJECTILES ===
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.userData.vel.y -= 9.8 * dt;
+    p.position.addScaledVector(p.userData.vel, dt);
+    p.userData.life += dt;
+    let removed = false;
+    for (const a of aliens) {
+      if (a.dead) continue;
+      if (p.position.distanceTo(a.group.position) < ALIEN_HIT_RADIUS) {
+        killAlien(a);
+        scene.remove(p);
+        projectiles.splice(i, 1);
+        removed = true;
+        break;
+      }
+    }
+    if (!removed && (p.userData.life > 5 || p.position.y < -10)) {
+      scene.remove(p);
+      projectiles.splice(i, 1);
+    }
+  }
+
+  // === FEATHERS ===
+  for (let i = feathers.length - 1; i >= 0; i--) {
+    const f = feathers[i];
+    f.userData.vel.y -= 4 * dt;
+    f.position.addScaledVector(f.userData.vel, dt);
+    f.rotation.x += f.userData.rot.x * dt;
+    f.rotation.y += f.userData.rot.y * dt;
+    f.rotation.z += f.userData.rot.z * dt;
+    f.userData.life += dt;
+    f.material.opacity = Math.max(0, 1 - f.userData.life * 0.6);
+    if (f.userData.life > 2) {
+      scene.remove(f);
+      feathers.splice(i, 1);
     }
   }
 
@@ -1718,7 +1748,6 @@ renderer.setAnimationLoop(() => {
       currentFloor = f;
       drawDisplay(String(f), f === TOTAL_FLOORS ? 'TOP' : 'FLOOR');
     }
-    // shake
     elevator.position.x = Math.sin(stateT * 28) * 0.012;
     if (t >= 1) {
       elevator.position.x = 0;
@@ -1726,7 +1755,9 @@ renderer.setAnimationLoop(() => {
       playDing();
       state = 'top';
       stateT = 0;
-      setInstr('Saia. Pegue as 5 pombinhas.');
+      lastAlienSpawnT = performance.now() + 800; // grace period
+      setInstr('Pegue o estilingue. PUXE com a esquerda. SOLTE pra atirar.');
+      setTimeout(() => setInstr(null), 5000);
     }
   } else if (state === 'top') {
     const doorT = Math.min(stateT / 1.6, 1);
@@ -1748,23 +1779,38 @@ renderer.setAnimationLoop(() => {
                       cameraRig.position.z > PLANK_BACK_Z &&
                       cameraRig.position.z < PLANK_FRONT_Z;
       if (onPlank && performance.now() - lastCreakT > 900 + Math.random()*1400) {
-        playWoodCreak();
+        // wood creak
+        noiseBurst(0.4, 0.4, 'bandpass', 240, 4, 1.5);
         pulseAll(0.35, 50);
         lastCreakT = performance.now();
       }
     }
-    checkFall();
+    checkFallOffPlank();
   } else if (state === 'falling') {
     updateFall(dt);
   } else if (state === 'splat') {
     if (stateT > 2.6) respawn();
   } else if (state === 'victory') {
-    // Spawn fireworks intermittently
     if (performance.now() - lastFireworkT > 350) {
       spawnFirework();
       lastFireworkT = performance.now();
     }
     if (stateT > 6) respawn();
+  }
+
+  // Plank sway
+  if (state === 'top' && cameraRig.parent === scene) {
+    const px = cameraRig.position.x;
+    const pz = cameraRig.position.z;
+    const onPlank = Math.abs(px) < PLANK_W/2 + 0.18 && pz > PLANK_BACK_Z && pz < PLANK_FRONT_Z;
+    if (onPlank) {
+      const distFromBase = (pz - PLANK_BACK_Z) / PLANK_LEN;
+      plank.rotation.x = Math.sin(nowMs * 0.003) * 0.012 * distFromBase;
+      plank.rotation.z = Math.sin(nowMs * 0.0035) * 0.008 * distFromBase;
+    } else {
+      plank.rotation.x *= 0.92;
+      plank.rotation.z *= 0.92;
+    }
   }
 
   // Update fireworks
@@ -1789,12 +1835,12 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, camera);
 });
 
-// HUD debug + score DOM
+// HUD update
 const hudEl = document.getElementById('hud');
 setInterval(() => {
   if (!hudEl) return;
   const p = cameraRig.position;
-  hudEl.textContent = `${state} · pos(${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)}) · F${currentFloor} · ${caughtCount}/${TOTAL_PIGEONS}`;
+  hudEl.textContent = `${state} · pos(${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)}) · F${currentFloor} · K${killCount}/${TOTAL_ALIENS} · HP${hp}`;
   updateScoreDOM();
 }, 250);
 </script>
