@@ -1819,12 +1819,14 @@ function spawnUfoForWave() {
   if (aliveChickens.length === 0) return;
   const target = aliveChickens[Math.floor(Math.random() * aliveChickens.length)];
   const u = makeUfo(w.ufoScale || 1);
-  // Wave 0 (hands): spawn bem perto do PLAYER, não do chicken — bem na cara, fácil
+  // Wave 0 (hands): spawn ALTO no céu, depois desce verticalmente até posição close-low
   if (w.weapon === 'hands') {
-    const x = (Math.random() - 0.5) * 3;            // -1.5 a +1.5 (na frente do player)
-    const z = 2.0 + Math.random() * 2.0;            // 2-4m do player (bem perto)
-    const y = 1.8 + Math.random() * 0.8;            // 1.8-2.6m de altura (na linha dos olhos)
-    u.group.position.set(x, y, z);
+    const x = (Math.random() - 0.5) * 3;            // -1.5 a +1.5
+    const z = 2.0 + Math.random() * 2.0;            // 2-4m do player
+    const targetY = 1.8 + Math.random() * 0.8;      // posição final na altura dos olhos
+    u.group.position.set(x, 14 + Math.random() * 4, z);  // spawn alto no céu (14-18m)
+    // Override do alvo de descida: desce verticalmente até (mesmo x/z, targetY)
+    u.descendOverride = new THREE.Vector3(x, targetY, z);
   } else {
     const baseDist = w.spawnDist != null ? w.spawnDist : 18;
     const distRand = w.spawnDistRand != null ? w.spawnDistRand : 8;
@@ -2721,20 +2723,37 @@ renderer.setAnimationLoop(() => {
           ufos.splice(i, 1); scene.remove(u.group); continue;
         }
       }
-      const targetPos = new THREE.Vector3(target.group.position.x, u.isBoss ? 5.5 : 4, target.group.position.z);
+      // Se UFO tem descendOverride (wave 0), desce pra essa posição fixa em vez do chicken
+      const targetPos = u.descendOverride
+        ? u.descendOverride
+        : new THREE.Vector3(target.group.position.x, u.isBoss ? 5.5 : 4, target.group.position.z);
       const dir = targetPos.clone().sub(u.group.position);
       const dist = dir.length();
       if (dist < 0.3) {
-        u.state = 'beaming';
-        u.beam.visible = true;
-        u.beamElapsed = 0;
-        if (target.state === 'wandering' || target.state === 'pecking') {
-          target.state = 'abducting';
+        if (u.descendOverride) {
+          // Wave 0: hover sem beam — UFO fica plantada esperando ser abatida
+          u.state = 'hovering';
+          u.hoverTime = 0;
+          u.escapeAfter = u.beamTime;
+        } else {
+          u.state = 'beaming';
+          u.beam.visible = true;
+          u.beamElapsed = 0;
+          if (target.state === 'wandering' || target.state === 'pecking') {
+            target.state = 'abducting';
+          }
+          playBeamStart();
         }
-        playBeamStart();
       } else {
         dir.normalize();
         u.group.position.addScaledVector(dir, u.speed * dt);
+      }
+    } else if (u.state === 'hovering') {
+      // Wave 0: paira ameaçando, depois foge se não morrer
+      u.group.position.y += Math.sin(nowMs * 0.005 + u.bobPhase) * 0.01;
+      u.hoverTime += dt;
+      if (u.hoverTime > u.escapeAfter) {
+        u.state = 'escaping';
       }
     } else if (u.state === 'beaming') {
       u.group.position.y += Math.sin(nowMs * 0.005 + u.bobPhase) * 0.01;
