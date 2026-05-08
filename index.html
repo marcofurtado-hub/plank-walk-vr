@@ -98,12 +98,14 @@ canvas{display:block}
       <li><b>Wave 5</b> — ⚡ Laser (feixe contínuo — segura)</li>
     </ul>
     <b class="red">Cada wave tem um BOSS</b> — UFO gigante com HP, abduz mais rápido e exige tiros consecutivos pra cair.<br><br>
-    <b>Estilingue / Besta:</b> mão direita segura a arma, leve a esquerda até a corda/saquinho, <b>aperte trigger esquerdo</b>, puxe pra trás e <b>solte</b> pra disparar.<br>
-    <b>Escopeta / Gatling / Laser:</b> mão direita aponta, <b>trigger direito</b>. Gatling/Laser = segurar.<br>
+    <b>VR — Estilingue / Besta:</b> mão direita segura a arma, leve a esquerda até a corda/saquinho, <b>aperte trigger esquerdo</b>, puxe pra trás e <b>solte</b> pra disparar.<br>
+    <b>VR — Escopeta / Gatling / Laser:</b> mão direita aponta, <b>trigger direito</b>. Gatling/Laser = segurar.<br>
+    <b>Desktop:</b> mouse mira, <b>clique</b> atira (segura pra metralhadora/laser).<br>
+    <b>📱 Mobile:</b> arraste o dedo pra mirar, <b>toque</b> pra atirar (segura pra metralhadora/laser).<br>
     <b>Movimento:</b> sentado e parado. Thumbstick direito vira (snap). <b>Sem vertigem</b>.<br>
     <b>Desktop:</b> mouse mira, <b>clique</b> atira (segurar = metralhadora). <b>Espaço</b> começa próxima wave.
   </div>
-  <div class="hint">Toque a tela e clique <b>ENTER VR</b> embaixo (Quest 2 browser).<br>Ou clique aqui pra preview no desktop.</div>
+  <div class="hint"><b>VR (Quest 2):</b> toque na tela e aperte <b>ENTER VR</b>.<br><b>Desktop / mobile:</b> toque/clique aqui pra começar.</div>
 </div>
 
 <div id="hud"></div>
@@ -1963,8 +1965,9 @@ const startEl = document.getElementById('start');
 function dismissStart() {
   initAudio();
   startEl.style.display = 'none';
-  setInstr('Clique pra começar');
-  if (renderer.domElement.requestPointerLock && !renderer.xr.isPresenting) {
+  setInstr(isTouch ? 'Toque pra começar' : 'Clique pra começar');
+  // Pointer lock só faz sentido em desktop (não-touch, não-VR)
+  if (!isTouch && renderer.domElement.requestPointerLock && !renderer.xr.isPresenting) {
     try { renderer.domElement.requestPointerLock(); } catch(e){}
   }
 }
@@ -1990,6 +1993,8 @@ addEventListener('mouseup', e => {
 });
 
 renderer.domElement.addEventListener('click', () => {
+  // Em mobile, touch handlers cuidam de tudo — ignora click pra evitar duplicidade
+  if (isTouch) return;
   if (!renderer.xr.isPresenting && !mouseLocked) {
     try { renderer.domElement.requestPointerLock(); } catch(e){}
     return;
