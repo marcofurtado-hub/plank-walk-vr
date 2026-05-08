@@ -1985,6 +1985,12 @@ renderer.setAnimationLoop(() => {
   // Tick laser beam (continuous)
   if (laserBeamActive) tickLaser(dt);
 
+  // 3D scoreboard visibility — esconde durante jogo ativo, mostra em idle/game over/vitória
+  const showSb = state === 'idle' || state === 'game_over' || state === 'victory';
+  sbMesh.visible = showSb;
+  sbChainL.visible = showSb;
+  sbChainR.visible = showSb;
+
   // 3D banner fade
   if (bannerMesh.visible) {
     bannerLife += dt;
