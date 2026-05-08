@@ -235,14 +235,49 @@ scene.add(new THREE.Mesh(new THREE.SphereGeometry(300, 24, 16), skyMat));
 const sunDisc = new THREE.Mesh(new THREE.CircleGeometry(8, 24), new THREE.MeshBasicMaterial({color:0xfff2c8, fog:false}));
 sunDisc.position.set(120, 80, 60); sunDisc.lookAt(0, 0, 0); scene.add(sunDisc);
 
-const cloudMat = new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.85, fog:false});
+// Nuvens procedurais com alpha-cut — silhueta cumulus de círculos soft-edge sobrepostos
+function makeCloudTexture(opts = {}) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 128;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, 256, 128);
+  const blobs = opts.blobs != null ? opts.blobs : 6 + Math.floor(Math.random() * 3);
+  // Base mais larga, topo mais alto (clássica forma de cumulus achatada embaixo)
+  for (let i = 0; i < blobs; i++) {
+    const cx = 30 + Math.random() * 196;
+    const cy = 40 + Math.random() * 55;        // concentra no terço superior
+    const r  = 22 + Math.random() * (opts.maxR || 38);
+    const grad = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+    grad.addColorStop(0, 'rgba(255,255,255,0.98)');
+    grad.addColorStop(0.55, 'rgba(255,255,255,0.75)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(cx, cy, r, 0, Math.PI * 2);
+    g.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
+  return tex;
+}
+const cloudTextures = [
+  makeCloudTexture({ blobs: 7 }),                // cumulus fofa
+  makeCloudTexture({ blobs: 5, maxR: 44 }),      // cumulus mais espalhada
+  makeCloudTexture({ blobs: 4, maxR: 30 }),      // cirrus mais rasgada
+];
+const cloudMaterials = cloudTextures.map(tex =>
+  new THREE.MeshBasicMaterial({
+    map: tex, transparent: true, alphaTest: 0.02, fog: false, depthWrite: false
+  })
+);
 const clouds = [];
 for (let i = 0; i < 14; i++) {
-  const w = 12 + Math.random()*22;
-  const cloud = new THREE.Mesh(new THREE.PlaneGeometry(w, w*0.42), cloudMat);
+  const w = 14 + Math.random() * 24;
+  const mat = cloudMaterials[Math.floor(Math.random() * cloudMaterials.length)];
+  const cloud = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 0.5), mat);
   const angle = Math.random() * Math.PI * 2;
-  const dist = 80 + Math.random()*120;
-  cloud.position.set(Math.cos(angle)*dist, 30 + Math.random()*40, Math.sin(angle)*dist);
+  const dist = 80 + Math.random() * 120;
+  cloud.position.set(Math.cos(angle) * dist, 30 + Math.random() * 40, Math.sin(angle) * dist);
   cloud.lookAt(0, cloud.position.y, 0);
   scene.add(cloud);
   clouds.push(cloud);
