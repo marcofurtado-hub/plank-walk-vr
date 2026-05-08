@@ -1007,10 +1007,16 @@ const muzzleFlashes = [];
 const explosions = [];
 
 function makeBulletMesh() {
-  return new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), new THREE.MeshBasicMaterial({color:0xffd040}));
+  // Visual = mini ovo (todas as armas atiram ovos)
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.030, 8, 6), new THREE.MeshLambertMaterial({color:0xfaf6e8}));
+  m.scale.set(1, 1.30, 1);
+  return m;
 }
 function makePebbleMesh() {
-  return new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), new THREE.MeshLambertMaterial({color:0x404048}));
+  // Visual = ovo (estilingue atira ovo)
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), new THREE.MeshLambertMaterial({color:0xfaf6e8}));
+  m.scale.set(1, 1.30, 1);
+  return m;
 }
 function makePlasmaProj() {
   const g = new THREE.Group();
@@ -1096,6 +1102,7 @@ function fireBullet(speed, damage, spreadRad = 0, scale = 1, color = 0xffd040) {
   proj.userData.damage = damage;
   proj.userData.gravity = false;
   proj.userData.isPlasma = false;
+  proj.userData.isEgg = true;
   scene.add(proj);
   projectiles.push(proj);
   spawnMuzzleFlash(origin, scale, color);
@@ -1202,6 +1209,7 @@ function fireSlingshotPouch() {
   proj.userData.damage = 2;             // dano dobrado
   proj.userData.gravity = true;
   proj.userData.isPlasma = false;
+  proj.userData.isEgg = true;
   scene.add(proj);
   projectiles.push(proj);
   playSlingshotRelease();
@@ -1225,6 +1233,7 @@ function fireCrossbowArrow() {
   arrow.userData.gravity = false;
   arrow.userData.isPlasma = false;
   arrow.userData.isArrow = true;
+  arrow.userData.isEgg = true;
   // Orient arrow shaft along velocity
   const arrowQ = new THREE.Quaternion();
   arrowQ.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir);
@@ -1237,17 +1246,13 @@ function fireCrossbowArrow() {
 }
 
 function makeArrowMesh() {
+  // Besta atira ovo (com pequena penacha vermelha pra estilizar)
   const g = new THREE.Group();
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.50, 6), new THREE.MeshLambertMaterial({color:0x6a4828}));
-  shaft.rotation.x = Math.PI/2; g.add(shaft);
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.06, 6), new THREE.MeshLambertMaterial({color:0xa0a0a8}));
-  tip.rotation.x = -Math.PI/2; tip.position.z = -0.28; g.add(tip);
-  for (let i = 0; i < 3; i++) {
-    const f = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.04, 0.07), new THREE.MeshLambertMaterial({color: i === 0 ? 0xff4040 : 0xffffff}));
-    f.position.set(0, 0, 0.22);
-    f.rotation.z = (i / 3) * Math.PI * 2;
-    g.add(f);
-  }
+  const egg = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), new THREE.MeshLambertMaterial({color:0xfaf6e8}));
+  egg.scale.set(1, 1.35, 1); g.add(egg);
+  // little tail feather for visibility
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.04, 0.06), new THREE.MeshLambertMaterial({color:0xff4040}));
+  fin.position.set(0, 0, 0.06); g.add(fin);
   return g;
 }
 
@@ -2012,6 +2017,7 @@ function desktopShoot() {
     proj.position.copy(camPos).addScaledVector(dir, 0.3);
     proj.userData.vel = dir.clone().multiplyScalar(MAX_SHOT_SPEED);
     proj.userData.life = 0; proj.userData.damage = 2; proj.userData.gravity = true;
+    proj.userData.isEgg = true;
     scene.add(proj); projectiles.push(proj);
     playSlingshotRelease();
     weaponCD = 0.35;
@@ -2025,6 +2031,7 @@ function desktopShoot() {
     arrow.userData.vel = dir.clone().multiplyScalar(CROSSBOW_ARROW_SPEED);
     arrow.userData.life = 0; arrow.userData.damage = 2; arrow.userData.gravity = false;
     arrow.userData.isArrow = true;
+    arrow.userData.isEgg = true;
     const arrowQ = new THREE.Quaternion();
     arrowQ.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir);
     arrow.quaternion.copy(arrowQ);
