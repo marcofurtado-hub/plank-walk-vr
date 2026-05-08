@@ -837,8 +837,8 @@ const laser = new THREE.Group();
   lGrip.position.set(0, -0.08, 0.05); lGrip.rotation.x = 0.18; laser.add(lGrip);
   const lBody = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.07, 0.34), new THREE.MeshLambertMaterial({color:0x202830}));
   lBody.position.set(0, 0, -0.05); laser.add(lBody);
-  // Glowing core
-  const lCore = new THREE.Mesh(new THREE.SphereGeometry(0.030, 12, 10), new THREE.MeshBasicMaterial({color:0xff4060}));
+  // Glowing core (yellow)
+  const lCore = new THREE.Mesh(new THREE.SphereGeometry(0.030, 12, 10), new THREE.MeshBasicMaterial({color:0xffd040}));
   lCore.position.set(0, 0.0, -0.02); laser.add(lCore);
   // Cooling fins
   for (let i = 0; i < 4; i++) {
@@ -846,17 +846,17 @@ const laser = new THREE.Group();
     fin.position.set(0, 0.04, -0.08 - i * 0.05);
     laser.add(fin);
   }
-  // Front emitter
-  const lEmitter = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.025, 0.10, 12), new THREE.MeshLambertMaterial({color:0xff4060, emissive:0x401020}));
+  // Front emitter (yellow)
+  const lEmitter = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.025, 0.10, 12), new THREE.MeshLambertMaterial({color:0xffd040, emissive:0x402010}));
   lEmitter.rotation.x = Math.PI/2; lEmitter.position.set(0, 0, -0.27); laser.add(lEmitter);
-  // Outer ring on emitter
-  const lRing = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.008, 6, 16), new THREE.MeshBasicMaterial({color:0xff8080}));
+  // Outer ring on emitter (yellow)
+  const lRing = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.008, 6, 16), new THREE.MeshBasicMaterial({color:0xffeb80}));
   lRing.rotation.x = Math.PI/2; lRing.position.set(0, 0, -0.32); laser.add(lRing);
   // Stock
   const lStock = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.16), new THREE.MeshLambertMaterial({color:0x303038}));
   lStock.position.set(0, 0, 0.17); laser.add(lStock);
-  // Sight (red dot)
-  const lSight = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), new THREE.MeshBasicMaterial({color:0xff2020}));
+  // Sight (yellow dot)
+  const lSight = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), new THREE.MeshBasicMaterial({color:0xffd040}));
   lSight.position.set(0, 0.055, -0.10); laser.add(lSight);
   laser.userData.core = lCore;
   laser.userData.emitter = lEmitter;
@@ -865,15 +865,15 @@ const laser = new THREE.Group();
 laser.visible = false;
 scene.add(laser);
 
-// Beam visual (cylinder) — only visible when laser fires
+// Beam visual (cylinder) — yellow, tremor (intermittent bursts like a machine gun)
 const laserBeamMesh = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.025, 0.025, 1, 10, 1, true),
-  new THREE.MeshBasicMaterial({color:0xff3050, transparent:true, opacity:0.7, fog:false, depthWrite:false, side:THREE.DoubleSide})
+  new THREE.CylinderGeometry(0.030, 0.030, 1, 10, 1, true),
+  new THREE.MeshBasicMaterial({color:0xffd040, transparent:true, opacity:0.85, fog:false, depthWrite:false, side:THREE.DoubleSide})
 );
 laserBeamMesh.visible = false; scene.add(laserBeamMesh);
 const laserBeamCore = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.008, 0.008, 1, 8, 1, true),
-  new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:1, fog:false, depthWrite:false, side:THREE.DoubleSide})
+  new THREE.CylinderGeometry(0.010, 0.010, 1, 8, 1, true),
+  new THREE.MeshBasicMaterial({color:0xffffe0, transparent:true, opacity:1, fog:false, depthWrite:false, side:THREE.DoubleSide})
 );
 laserBeamCore.visible = false; scene.add(laserBeamCore);
 
@@ -1124,10 +1124,32 @@ function fireGatlingBurst() {
   weaponCD = 0.05;
 }
 
-// LASER tick — chamado pelo main loop a cada 0.1s enquanto trigger segurado
+// LASER tick — beam aparece em rajadas (pulse on/off, tipo metralhadora)
+let laserPulseT = 0;
+let laserPulseOn = false;
+const LASER_ON_TIME = 0.045;
+const LASER_OFF_TIME = 0.060;
+
 function tickLaser(dt) {
   if (!laserBeamActive) return;
-  // Origin & direction
+  laserPulseT += dt;
+
+  // Toggle pulse on/off
+  if (laserPulseOn && laserPulseT >= LASER_ON_TIME) {
+    laserPulseOn = false; laserPulseT = 0;
+    laserBeamMesh.visible = false;
+    laserBeamCore.visible = false;
+  } else if (!laserPulseOn && laserPulseT >= LASER_OFF_TIME) {
+    laserPulseOn = true; laserPulseT = 0;
+    laserBeamMesh.visible = true;
+    laserBeamCore.visible = true;
+    playLaserPulse();
+    pulseController(rightCtrl, 0.25, 25);
+  }
+
+  if (!laserPulseOn) return;
+
+  // Origin & direction (com tremor leve)
   const origin = new THREE.Vector3();
   const fwd = new THREE.Vector3(0, 0, -1);
   const q = new THREE.Quaternion();
@@ -1139,7 +1161,13 @@ function tickLaser(dt) {
     camera.getWorldQuaternion(q);
   }
   fwd.applyQuaternion(q);
-  origin.addScaledVector(fwd, 0.32); // start at emitter
+  // tremor: small random jitter on direction
+  fwd.x += (Math.random() - 0.5) * 0.025;
+  fwd.y += (Math.random() - 0.5) * 0.025;
+  fwd.z += (Math.random() - 0.5) * 0.025;
+  fwd.normalize();
+  origin.addScaledVector(fwd, 0.32);
+
   // Find closest UFO in beam
   let closestT = 40;
   let target = null;
@@ -1150,9 +1178,10 @@ function tickLaser(dt) {
     if (t < 0 || t > closestT) continue;
     const closestPt = origin.clone().addScaledVector(fwd, t);
     const distLine = closestPt.distanceTo(u.group.position);
-    const r = UFO_HIT_RADIUS * u.group.scale.x + 0.18;
+    const r = UFO_HIT_RADIUS * u.group.scale.x + 0.20;
     if (distLine < r && t < closestT) { closestT = t; target = u; }
   }
+
   // Update beam visual
   const beamLen = closestT;
   const mid = origin.clone().addScaledVector(fwd, beamLen / 2);
@@ -1164,15 +1193,12 @@ function tickLaser(dt) {
   laserBeamCore.scale.set(1, beamLen, 1);
   laserBeamCore.position.copy(mid);
   laserBeamCore.quaternion.copy(orientQ);
-  // Pulsing beam intensity
-  laserBeamMesh.material.opacity = 0.6 + Math.random() * 0.3;
-  // Damage tick
-  laserDamageTick -= dt;
-  if (laserDamageTick <= 0 && target) {
-    laserDamageTick = 0.08;
+  // Flicker opacity (during pulse-on phase)
+  laserBeamMesh.material.opacity = 0.7 + Math.random() * 0.3;
+
+  // Damage on each pulse-on transition (1 dmg per pulse)
+  if (target) {
     damageUfo(target, 1);
-    pulseController(rightCtrl, 0.25, 30);
-    // tiny sparkle at hit point
     const hitPos = origin.clone().addScaledVector(fwd, closestT);
     spawnHitSparks(hitPos);
   }
@@ -1180,17 +1206,15 @@ function tickLaser(dt) {
 
 function startLaserBeam() {
   laserBeamActive = true;
-  laserBeamMesh.visible = true;
-  laserBeamCore.visible = true;
-  laserDamageTick = 0;
-  startLaserHum();
-  pulseController(rightCtrl, 0.4, 80);
+  laserPulseOn = false;
+  laserPulseT = LASER_OFF_TIME;  // arma a próxima pulse imediatamente
+  pulseController(rightCtrl, 0.4, 60);
 }
 function stopLaserBeam() {
   laserBeamActive = false;
   laserBeamMesh.visible = false;
   laserBeamCore.visible = false;
-  stopLaserHum();
+  laserPulseOn = false;
 }
 
 // SLINGSHOT — pouco mais sensível e mais forte
@@ -1365,7 +1389,12 @@ function playGatlingShot() {
   noiseBurst(0.04, 0.32, 'bandpass', 1700, 1);
   tone(125, 0.06, 'sine', 0.22, 0.005, 65);
 }
-// Laser continuous hum
+// Laser pulse — curto burst amarelado, tipo metralhadora-laser
+function playLaserPulse() {
+  tone(2400, 0.04, 'square', 0.20, 0.001, 1500);
+  noiseBurst(0.05, 0.20, 'highpass', 2200, 1);
+}
+// Laser continuous hum (não usamos mais — pulse substitui)
 let laserOsc = null, laserOscGain = null, laserNoise = null, laserNoiseGain = null;
 function startLaserHum() {
   if (!audioCtx) return;
@@ -2096,7 +2125,8 @@ renderer.setAnimationLoop(() => {
   if (activeWeapon === 'laser' && laser.userData.core) {
     laser.userData.core.scale.setScalar(1 + Math.sin(nowMs * 0.012) * 0.3);
     laser.userData.ring.rotation.z += dt * 5;
-    laser.userData.emitter.material.emissive.setHex(laserBeamActive ? 0xff4060 : 0x401020);
+    // emitter pulses bright yellow when firing
+    laser.userData.emitter.material.emissive.setHex(laserBeamActive && laserPulseOn ? 0xffd040 : 0x402010);
   }
   // Gatling spin
   if (activeWeapon === 'gatling') {
