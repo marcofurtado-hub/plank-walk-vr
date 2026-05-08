@@ -91,15 +91,15 @@ canvas{display:block}
     Você está numa <b>cadeira de rodas na varanda</b>. Mini-UFOs alienígenas tentam abduzir suas <b class="yel">5 galinhas</b> com feixe de luz. Atire neles antes.<br><br>
     <b>5 waves crescentes — cada uma melhora sua arma:</b>
     <ul>
-      <li><b>Wave 1</b> — 🪨 Estilingue</li>
-      <li><b>Wave 2</b> — 🔫 Pistola</li>
-      <li><b>Wave 3</b> — 💥 Escopeta (spread)</li>
-      <li><b>Wave 4</b> — 🔥 Metralhadora (segura o trigger)</li>
-      <li><b>Wave 5</b> — ⚡ Plasma (área de explosão)</li>
+      <li><b>Wave 1</b> — 🪨 Estilingue (puxa & solta)</li>
+      <li><b>Wave 2</b> — 🏹 Besta horizontal (puxa a corda & solta a flecha)</li>
+      <li><b>Wave 3</b> — 💥 Escopeta (12 pellets)</li>
+      <li><b>Wave 4</b> — 🔥 Gatling (6 canos giratórios — segura)</li>
+      <li><b>Wave 5</b> — ⚡ Laser (feixe contínuo — segura)</li>
     </ul>
     <b class="red">Cada wave tem um BOSS</b> — UFO gigante com HP, abduz mais rápido e exige tiros consecutivos pra cair.<br><br>
-    <b>Estilingue (wave 1):</b> mão direita segura, leve a esquerda no pouch, <b>aperte trigger esquerdo</b>, puxe e <b>solte</b>.<br>
-    <b>Outras armas (waves 2-5):</b> mão direita aponta, <b>aperte trigger direito</b> pra atirar. Metralhadora = segurar trigger.<br>
+    <b>Estilingue / Besta:</b> mão direita segura a arma, leve a esquerda até a corda/saquinho, <b>aperte trigger esquerdo</b>, puxe pra trás e <b>solte</b> pra disparar.<br>
+    <b>Escopeta / Gatling / Laser:</b> mão direita aponta, <b>trigger direito</b>. Gatling/Laser = segurar.<br>
     <b>Movimento:</b> sentado e parado. Thumbstick direito vira (snap). <b>Sem vertigem</b>.<br>
     <b>Desktop:</b> mouse mira, <b>clique</b> atira (segurar = metralhadora). <b>Espaço</b> começa próxima wave.
   </div>
@@ -137,19 +137,21 @@ const YARD_FAR = 18;
 const YARD_NEAR = 1;
 const YARD_HALF_X = 9;
 const PLAYER_Y = PORCH_LEVEL;
-const POUCH_GRAB_DIST = 0.22;
-const SHOT_SPEED_FACTOR = 24;
-const MAX_SHOT_SPEED = 14;
-const UFO_HIT_RADIUS = 0.45;
+const POUCH_GRAB_DIST = 0.32;          // mais fácil de agarrar
+const SHOT_SPEED_FACTOR = 38;          // estilingue mais forte
+const MAX_SHOT_SPEED = 24;             // tope mais alto
+const SLINGSHOT_MIN_PULL = 0.025;      // libera com puxada bem pequena
+const CROSSBOW_ARROW_SPEED = 38;       // sempre forte e direto (sem gravidade)
+const UFO_HIT_RADIUS = 0.5;
 const TOTAL_CHICKENS = 5;
 
-// Wave config
+// Wave config — armas progressivas conforme pedido do PM
 const WAVES = [
-  { count: 5,  speed: 1.6, beamTime: 6.0, interval: 1.4, weapon: 'slingshot',  label: 'ESTILINGUE',    bossHp: 2 },
-  { count: 7,  speed: 1.9, beamTime: 5.5, interval: 1.0, weapon: 'pistol',     label: 'PISTOLA',       bossHp: 5 },
-  { count: 10, speed: 2.2, beamTime: 5.0, interval: 0.8, weapon: 'shotgun',    label: 'ESCOPETA',      bossHp: 9 },
-  { count: 14, speed: 2.5, beamTime: 4.5, interval: 0.55, weapon: 'machinegun', label: 'METRALHADORA',  bossHp: 18 },
-  { count: 18, speed: 2.9, beamTime: 4.0, interval: 0.4, weapon: 'plasma',     label: 'PLASMA',        bossHp: 28 },
+  { count: 5,  speed: 1.6, beamTime: 6.0, interval: 1.4,  weapon: 'slingshot', label: 'ESTILINGUE', bossHp: 3 },
+  { count: 7,  speed: 1.9, beamTime: 5.5, interval: 1.0,  weapon: 'crossbow',  label: 'BESTA',      bossHp: 5 },
+  { count: 11, speed: 2.2, beamTime: 5.0, interval: 0.75, weapon: 'shotgun',   label: 'ESCOPETA',   bossHp: 7 },
+  { count: 16, speed: 2.5, beamTime: 4.5, interval: 0.5,  weapon: 'gatling',   label: 'GATLING',    bossHp: 14 },
+  { count: 22, speed: 2.9, beamTime: 4.0, interval: 0.38, weapon: 'laser',     label: 'LASER',      bossHp: 30 },
 ];
 
 // =============================================================================
@@ -733,21 +735,39 @@ slTipR.position.set(0.058, 0.165, 0); slingshot.add(slTipR);
 slingshot.visible = false;
 scene.add(slingshot);
 
-// ----- PISTOL -----
-const pistol = new THREE.Group();
+// ----- CROSSBOW (besta) — limbs horizontais, puxa pra trás -----
+const crossbow = new THREE.Group();
+const cbTipL = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), new THREE.MeshLambertMaterial({color:0x281610}));
+const cbTipR = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), new THREE.MeshLambertMaterial({color:0x281610}));
 {
-  const pGrip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.13, 0.06), new THREE.MeshLambertMaterial({color:0x202028}));
-  pGrip.position.set(0, -0.06, 0.02); pGrip.rotation.x = 0.2; pistol.add(pGrip);
-  const pSlide = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.06, 0.18), new THREE.MeshLambertMaterial({color:0x404048}));
-  pSlide.position.set(0, 0, -0.05); pistol.add(pSlide);
-  const pBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.08, 8), new THREE.MeshLambertMaterial({color:0x101018}));
-  pBarrel.rotation.x = Math.PI/2; pBarrel.position.set(0, 0, -0.18); pistol.add(pBarrel);
-  // sight
-  const pSight = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.012, 0.01), new THREE.MeshLambertMaterial({color:0x808088}));
-  pSight.position.set(0, 0.034, -0.13); pistol.add(pSight);
+  const cbStock = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, 0.22), new THREE.MeshLambertMaterial({color:0x6a4828}));
+  cbStock.position.set(0, 0, 0.04); crossbow.add(cbStock);
+  const cbGrip = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.13, 0.05), new THREE.MeshLambertMaterial({color:0x281610}));
+  cbGrip.position.set(0, -0.08, 0.10); cbGrip.rotation.x = 0.18; crossbow.add(cbGrip);
+  // Front rail (where the arrow rests)
+  const cbRail = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.04, 0.30), new THREE.MeshLambertMaterial({color:0x404048}));
+  cbRail.position.set(0, 0.02, -0.10); crossbow.add(cbRail);
+  // Bow body in front (bridge holding limbs)
+  const cbBridge = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.06, 0.06), new THREE.MeshLambertMaterial({color:0x4a3018}));
+  cbBridge.position.set(0, 0.01, -0.20); crossbow.add(cbBridge);
+  // Bow limbs — horizontal, extending L+R
+  const limbMat = new THREE.MeshLambertMaterial({color:0x4a3018});
+  const limbL = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.018, 0.22, 8), limbMat);
+  limbL.rotation.z = Math.PI/2; limbL.position.set(-0.13, 0.02, -0.20); crossbow.add(limbL);
+  const limbR = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.018, 0.22, 8), limbMat);
+  limbR.rotation.z = Math.PI/2; limbR.position.set(0.13, 0.02, -0.20); crossbow.add(limbR);
+  // Limb tips (string attachment points)
+  cbTipL.position.set(-0.235, 0.02, -0.20); crossbow.add(cbTipL);
+  cbTipR.position.set(0.235, 0.02, -0.20); crossbow.add(cbTipR);
+  // Trigger
+  const cbTrigger = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.03, 0.02), new THREE.MeshLambertMaterial({color:0x808088}));
+  cbTrigger.position.set(0, -0.04, 0.07); crossbow.add(cbTrigger);
+  // Sight
+  const cbSight = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.025, 0.015), new THREE.MeshLambertMaterial({color:0x808088}));
+  cbSight.position.set(0, 0.045, -0.05); crossbow.add(cbSight);
 }
-pistol.visible = false;
-scene.add(pistol);
+crossbow.visible = false;
+scene.add(crossbow);
 
 // ----- SHOTGUN -----
 const shotgun = new THREE.Group();
@@ -766,57 +786,97 @@ const shotgun = new THREE.Group();
 shotgun.visible = false;
 scene.add(shotgun);
 
-// ----- MACHINEGUN -----
-const machinegun = new THREE.Group();
+// ----- GATLING (6 canos giratórios) -----
+const gatling = new THREE.Group();
+const gatlingBarrels = new THREE.Group(); // rotates around forward axis
 {
-  const mGrip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.13, 0.06), new THREE.MeshLambertMaterial({color:0x101018}));
-  mGrip.position.set(0, -0.06, 0.06); mGrip.rotation.x = 0.2; machinegun.add(mGrip);
-  const mReceiver = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.30), new THREE.MeshLambertMaterial({color:0x303038}));
-  mReceiver.position.set(0, 0.0, -0.05); machinegun.add(mReceiver);
-  const mBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.30, 10), new THREE.MeshLambertMaterial({color:0x101018}));
-  mBarrel.rotation.x = Math.PI/2; mBarrel.position.set(0, 0.005, -0.30); machinegun.add(mBarrel);
-  // muzzle brake
-  const mMuzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.05, 8), new THREE.MeshLambertMaterial({color:0x202028}));
-  mMuzzle.rotation.x = Math.PI/2; mMuzzle.position.set(0, 0.005, -0.45); machinegun.add(mMuzzle);
-  // magazine
-  const mMag = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.14, 0.08), new THREE.MeshLambertMaterial({color:0x101018}));
-  mMag.position.set(0, -0.10, 0); machinegun.add(mMag);
-  // stock
-  const mStock = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.06, 0.18), new THREE.MeshLambertMaterial({color:0x202028}));
-  mStock.position.set(0, 0, 0.18); machinegun.add(mStock);
-  // sight
-  const mSight = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.025, 0.02), new THREE.MeshLambertMaterial({color:0x808088}));
-  mSight.position.set(0, 0.052, -0.12); machinegun.add(mSight);
+  const gGrip = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.14, 0.06), new THREE.MeshLambertMaterial({color:0x101018}));
+  gGrip.position.set(0, -0.08, 0.04); gGrip.rotation.x = 0.2; gatling.add(gGrip);
+  const gReceiver = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.10, 0.18), new THREE.MeshLambertMaterial({color:0x303038}));
+  gReceiver.position.set(0, 0.0, -0.05); gatling.add(gReceiver);
+  // Barrel cluster — 6 barrels in a circle
+  for (let i = 0; i < 6; i++) {
+    const angle = (i / 6) * Math.PI * 2;
+    const barrel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.015, 0.015, 0.36, 8),
+      new THREE.MeshLambertMaterial({color: i === 0 ? 0x808088 : 0x202028})
+    );
+    barrel.rotation.x = Math.PI/2;
+    barrel.position.set(Math.cos(angle) * 0.045, Math.sin(angle) * 0.045, -0.30);
+    gatlingBarrels.add(barrel);
+  }
+  // Front cap (rotates with cluster)
+  const gFrontCap = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.04, 12), new THREE.MeshLambertMaterial({color:0x202028}));
+  gFrontCap.rotation.x = Math.PI/2; gFrontCap.position.set(0, 0, -0.46);
+  gatlingBarrels.add(gFrontCap);
+  // Back disc (rotates with cluster)
+  const gBackDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.04, 12), new THREE.MeshLambertMaterial({color:0x404048}));
+  gBackDisc.rotation.x = Math.PI/2; gBackDisc.position.set(0, 0, -0.13);
+  gatlingBarrels.add(gBackDisc);
+  gatling.add(gatlingBarrels);
+  // Ammo box (looks like a drum) — stays still
+  const gDrum = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 12), new THREE.MeshLambertMaterial({color:0x4a3018}));
+  gDrum.rotation.z = Math.PI/2; gDrum.position.set(0, -0.04, 0.06); gatling.add(gDrum);
+  // Stock support
+  const gStock = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.18), new THREE.MeshLambertMaterial({color:0x202028}));
+  gStock.position.set(0, 0, 0.16); gatling.add(gStock);
+  // Sight
+  const gSight = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.03, 0.02), new THREE.MeshLambertMaterial({color:0x808088}));
+  gSight.position.set(0, 0.07, -0.05); gatling.add(gSight);
 }
-machinegun.visible = false;
-scene.add(machinegun);
+gatling.visible = false;
+gatling.userData.barrels = gatlingBarrels;
+gatling.userData.spinSpeed = 0;
+scene.add(gatling);
 
-// ----- PLASMA -----
-const plasma = new THREE.Group();
+// ----- LASER -----
+const laser = new THREE.Group();
 {
-  const plGrip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.13, 0.06), new THREE.MeshLambertMaterial({color:0x202830}));
-  plGrip.position.set(0, -0.06, 0.05); plGrip.rotation.x = 0.2; plasma.add(plGrip);
-  const plBody = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.40, 12), new THREE.MeshLambertMaterial({color:0x303848}));
-  plBody.rotation.x = Math.PI/2; plBody.position.set(0, 0, -0.10); plasma.add(plBody);
-  const plRing = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.012, 6, 16), new THREE.MeshBasicMaterial({color:0x40e0ff}));
-  plRing.rotation.x = Math.PI/2; plRing.position.set(0, 0, -0.30); plasma.add(plRing);
-  const plRing2 = plRing.clone(); plRing2.position.set(0, 0, -0.10); plasma.add(plRing2);
-  const plCore = new THREE.Mesh(
-    new THREE.SphereGeometry(0.04, 12, 8),
-    new THREE.MeshBasicMaterial({color:0x80ffe0})
-  );
-  plCore.position.set(0, 0.0, -0.10); plasma.add(plCore);
-  const plMuzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.085, 0.06, 12), new THREE.MeshLambertMaterial({color:0x40e0ff, emissive:0x102030}));
-  plMuzzle.rotation.x = Math.PI/2; plMuzzle.position.set(0, 0, -0.32); plasma.add(plMuzzle);
-  // animate the core
-  plasma.userData.core = plCore;
-  plasma.userData.ring = plRing;
-  plasma.userData.ring2 = plRing2;
+  const lGrip = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.14, 0.06), new THREE.MeshLambertMaterial({color:0x202028}));
+  lGrip.position.set(0, -0.08, 0.05); lGrip.rotation.x = 0.18; laser.add(lGrip);
+  const lBody = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.07, 0.34), new THREE.MeshLambertMaterial({color:0x202830}));
+  lBody.position.set(0, 0, -0.05); laser.add(lBody);
+  // Glowing core
+  const lCore = new THREE.Mesh(new THREE.SphereGeometry(0.030, 12, 10), new THREE.MeshBasicMaterial({color:0xff4060}));
+  lCore.position.set(0, 0.0, -0.02); laser.add(lCore);
+  // Cooling fins
+  for (let i = 0; i < 4; i++) {
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.02, 0.04), new THREE.MeshLambertMaterial({color:0x404048}));
+    fin.position.set(0, 0.04, -0.08 - i * 0.05);
+    laser.add(fin);
+  }
+  // Front emitter
+  const lEmitter = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.025, 0.10, 12), new THREE.MeshLambertMaterial({color:0xff4060, emissive:0x401020}));
+  lEmitter.rotation.x = Math.PI/2; lEmitter.position.set(0, 0, -0.27); laser.add(lEmitter);
+  // Outer ring on emitter
+  const lRing = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.008, 6, 16), new THREE.MeshBasicMaterial({color:0xff8080}));
+  lRing.rotation.x = Math.PI/2; lRing.position.set(0, 0, -0.32); laser.add(lRing);
+  // Stock
+  const lStock = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.16), new THREE.MeshLambertMaterial({color:0x303038}));
+  lStock.position.set(0, 0, 0.17); laser.add(lStock);
+  // Sight (red dot)
+  const lSight = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), new THREE.MeshBasicMaterial({color:0xff2020}));
+  lSight.position.set(0, 0.055, -0.10); laser.add(lSight);
+  laser.userData.core = lCore;
+  laser.userData.emitter = lEmitter;
+  laser.userData.ring = lRing;
 }
-plasma.visible = false;
-scene.add(plasma);
+laser.visible = false;
+scene.add(laser);
 
-const allWeaponGroups = { slingshot, pistol, shotgun, machinegun, plasma };
+// Beam visual (cylinder) — only visible when laser fires
+const laserBeamMesh = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.025, 0.025, 1, 10, 1, true),
+  new THREE.MeshBasicMaterial({color:0xff3050, transparent:true, opacity:0.7, fog:false, depthWrite:false, side:THREE.DoubleSide})
+);
+laserBeamMesh.visible = false; scene.add(laserBeamMesh);
+const laserBeamCore = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.008, 0.008, 1, 8, 1, true),
+  new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:1, fog:false, depthWrite:false, side:THREE.DoubleSide})
+);
+laserBeamCore.visible = false; scene.add(laserBeamCore);
+
+const allWeaponGroups = { slingshot, crossbow, shotgun, gatling, laser };
 
 // ----- PEBBLE / POUCH (slingshot only) -----
 const pouchMesh = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.025, 0.025), new THREE.MeshLambertMaterial({color:0x382010}));
@@ -835,9 +895,13 @@ const elasticR = new THREE.Line(elasticGeoR, elasticMat);
 scene.add(elasticR);
 
 let pouchGrabbed = false;
-const POUCH_REST_LOCAL = new THREE.Vector3(0, 0.165, -0.005);
+const POUCH_REST_BY_WEAPON = {
+  slingshot: new THREE.Vector3(0, 0.165, -0.005),
+  crossbow:  new THREE.Vector3(0, 0.020, -0.20),
+};
 function getPouchRestWorld() {
-  const v = POUCH_REST_LOCAL.clone();
+  const local = POUCH_REST_BY_WEAPON[activeWeapon] || POUCH_REST_BY_WEAPON.slingshot;
+  const v = local.clone();
   rightCtrl.localToWorld(v);
   return v;
 }
@@ -853,28 +917,39 @@ function getPouchPosWorld() {
 // ===== Active weapon
 let activeWeapon = 'slingshot';
 let weaponCD = 0;
+let pendingShot = false;          // input buffer — segura aperto durante cooldown
+let laserBeamActive = false;
+let laserDamageTick = 0;
 const triggerHeld = { right: false, left: false };
 
 function equipWeapon(name) {
   for (const k of Object.keys(allWeaponGroups)) allWeaponGroups[k].visible = false;
-  // weapon group will be positioned to right controller in main loop
   allWeaponGroups[name].visible = true;
   activeWeapon = name;
   pouchGrabbed = false;
   weaponCD = 0;
-  // pebble visibility for slingshot
-  if (name === 'slingshot') {
+  pendingShot = false;
+  laserBeamActive = false;
+  laserBeamMesh.visible = false;
+  laserBeamCore.visible = false;
+  stopLaserHum();
+  if (name === 'slingshot' || name === 'crossbow') {
     pouchMesh.visible = true;
     pebbleReadyMesh.visible = true;
     elasticL.visible = true;
     elasticR.visible = true;
+    // Different pebble visual: arrow for crossbow
+    pebbleReadyMesh.scale.set(1, 1, name === 'crossbow' ? 4 : 1);
+    pebbleReadyMesh.material.color.setHex(name === 'crossbow' ? 0x6a4828 : 0x404048);
   } else {
     pouchMesh.visible = false;
     pebbleReadyMesh.visible = false;
+    pebbleReadyMesh.scale.set(1, 1, 1);
     elasticL.visible = false;
     elasticR.visible = false;
   }
   updateHUD();
+  if (typeof updateScoreboard === 'function') updateScoreboard();
 }
 
 // =============================================================================
@@ -979,63 +1054,154 @@ function fireBullet(speed, damage, spreadRad = 0, scale = 1, color = 0xffd040) {
   spawnMuzzleFlash(origin, scale, color);
 }
 
-function firePistol() {
-  fireBullet(60, 1, 0.005, 1, 0xffd040);
-  playPistolShot();
-  pulseController(rightCtrl, 0.5, 50);
-  weaponCD = 0.30;
-}
+// SHOTGUN — 12 pellets, spread maior, dano 1 cada (parede de chumbo)
 function fireShotgun() {
-  for (let i = 0; i < 7; i++) fireBullet(55, 1, 0.18, 0.8, 0xffe860);
+  for (let i = 0; i < 12; i++) fireBullet(60, 1, 0.22, 0.9, 0xffe860);
   playShotgunShot();
-  pulseController(rightCtrl, 0.85, 120);
-  weaponCD = 0.65;
-}
-function fireMachinegunBurst() {
-  fireBullet(70, 1, 0.04, 0.8, 0xff8030);
-  playMgShot();
-  pulseController(rightCtrl, 0.3, 30);
-  weaponCD = 0.07;
-}
-function firePlasma() {
-  const origin = getRightControllerOrigin();
-  const fwd = getRightControllerForward();
-  origin.addScaledVector(fwd, 0.35);
-  const proj = makePlasmaProj();
-  proj.position.copy(origin);
-  proj.userData.vel = fwd.clone().multiplyScalar(22);
-  proj.userData.life = 0;
-  proj.userData.damage = 4;
-  proj.userData.gravity = false;
-  proj.userData.isPlasma = true;
-  scene.add(proj);
-  projectiles.push(proj);
-  spawnMuzzleFlash(origin, 3, 0x80ffe0);
-  playPlasmaShot();
-  pulseController(rightCtrl, 0.95, 180);
-  weaponCD = 1.1;
+  pulseController(rightCtrl, 0.9, 130);
+  weaponCD = 0.42;
 }
 
+// GATLING — 6 canos giratórios, dano 2 por bala, fire rate 0.05s
+function fireGatlingBurst() {
+  fireBullet(75, 2, 0.03, 0.95, 0xff8030);
+  playGatlingShot();
+  pulseController(rightCtrl, 0.35, 30);
+  weaponCD = 0.05;
+}
+
+// LASER tick — chamado pelo main loop a cada 0.1s enquanto trigger segurado
+function tickLaser(dt) {
+  if (!laserBeamActive) return;
+  // Origin & direction
+  const origin = new THREE.Vector3();
+  const fwd = new THREE.Vector3(0, 0, -1);
+  const q = new THREE.Quaternion();
+  if (renderer.xr.isPresenting) {
+    rightCtrl.getWorldPosition(origin);
+    rightCtrl.getWorldQuaternion(q);
+  } else {
+    camera.getWorldPosition(origin);
+    camera.getWorldQuaternion(q);
+  }
+  fwd.applyQuaternion(q);
+  origin.addScaledVector(fwd, 0.32); // start at emitter
+  // Find closest UFO in beam
+  let closestT = 40;
+  let target = null;
+  for (const u of ufos) {
+    if (u.state === 'dead' || u.state === 'escaping_done') continue;
+    const v = u.group.position.clone().sub(origin);
+    const t = v.dot(fwd);
+    if (t < 0 || t > closestT) continue;
+    const closestPt = origin.clone().addScaledVector(fwd, t);
+    const distLine = closestPt.distanceTo(u.group.position);
+    const r = UFO_HIT_RADIUS * (u.isBoss ? 2.4 : 1) + 0.18;
+    if (distLine < r && t < closestT) { closestT = t; target = u; }
+  }
+  // Update beam visual
+  const beamLen = closestT;
+  const mid = origin.clone().addScaledVector(fwd, beamLen / 2);
+  const orientQ = new THREE.Quaternion();
+  orientQ.setFromUnitVectors(new THREE.Vector3(0, 1, 0), fwd);
+  laserBeamMesh.scale.set(1, beamLen, 1);
+  laserBeamMesh.position.copy(mid);
+  laserBeamMesh.quaternion.copy(orientQ);
+  laserBeamCore.scale.set(1, beamLen, 1);
+  laserBeamCore.position.copy(mid);
+  laserBeamCore.quaternion.copy(orientQ);
+  // Pulsing beam intensity
+  laserBeamMesh.material.opacity = 0.6 + Math.random() * 0.3;
+  // Damage tick
+  laserDamageTick -= dt;
+  if (laserDamageTick <= 0 && target) {
+    laserDamageTick = 0.08;
+    damageUfo(target, 1);
+    pulseController(rightCtrl, 0.25, 30);
+    // tiny sparkle at hit point
+    const hitPos = origin.clone().addScaledVector(fwd, closestT);
+    spawnHitSparks(hitPos);
+  }
+}
+
+function startLaserBeam() {
+  laserBeamActive = true;
+  laserBeamMesh.visible = true;
+  laserBeamCore.visible = true;
+  laserDamageTick = 0;
+  startLaserHum();
+  pulseController(rightCtrl, 0.4, 80);
+}
+function stopLaserBeam() {
+  laserBeamActive = false;
+  laserBeamMesh.visible = false;
+  laserBeamCore.visible = false;
+  stopLaserHum();
+}
+
+// SLINGSHOT — pouco mais sensível e mais forte
 function fireSlingshotPouch() {
   const restW = getPouchRestWorld();
   const pouchW = pouchMesh.position.clone();
   const pull = restW.clone().sub(pouchW);
   const dist = pull.length();
-  if (dist < 0.04) return;
+  if (dist < SLINGSHOT_MIN_PULL) return;
   const speed = Math.min(dist * SHOT_SPEED_FACTOR, MAX_SHOT_SPEED);
   const dir = pull.normalize();
   const proj = makePebbleMesh();
   proj.position.copy(pouchW);
   proj.userData.vel = dir.multiplyScalar(speed);
   proj.userData.life = 0;
-  proj.userData.damage = 1;
+  proj.userData.damage = 2;             // dano dobrado
   proj.userData.gravity = true;
   proj.userData.isPlasma = false;
   scene.add(proj);
   projectiles.push(proj);
   playSlingshotRelease();
-  pulseController(leftCtrl, 0.6, 80);
+  pulseController(leftCtrl, 0.7, 90);
   pulseController(rightCtrl, 0.4, 60);
+}
+
+// CROSSBOW (besta) — puxa e solta, sempre força máxima, sem gravidade, dano 2
+function fireCrossbowArrow() {
+  const restW = getPouchRestWorld();
+  const pouchW = pouchMesh.position.clone();
+  const pull = restW.clone().sub(pouchW);
+  const dist = pull.length();
+  if (dist < 0.04) return;
+  const dir = pull.normalize();
+  const arrow = makeArrowMesh();
+  arrow.position.copy(pouchW);
+  arrow.userData.vel = dir.clone().multiplyScalar(CROSSBOW_ARROW_SPEED);
+  arrow.userData.life = 0;
+  arrow.userData.damage = 2;
+  arrow.userData.gravity = false;
+  arrow.userData.isPlasma = false;
+  arrow.userData.isArrow = true;
+  // Orient arrow shaft along velocity
+  const arrowQ = new THREE.Quaternion();
+  arrowQ.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir);
+  arrow.quaternion.copy(arrowQ);
+  scene.add(arrow);
+  projectiles.push(arrow);
+  playArrowRelease();
+  pulseController(leftCtrl, 0.85, 100);
+  pulseController(rightCtrl, 0.5, 70);
+}
+
+function makeArrowMesh() {
+  const g = new THREE.Group();
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.50, 6), new THREE.MeshLambertMaterial({color:0x6a4828}));
+  shaft.rotation.x = Math.PI/2; g.add(shaft);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.06, 6), new THREE.MeshLambertMaterial({color:0xa0a0a8}));
+  tip.rotation.x = -Math.PI/2; tip.position.z = -0.28; g.add(tip);
+  for (let i = 0; i < 3; i++) {
+    const f = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.04, 0.07), new THREE.MeshLambertMaterial({color: i === 0 ? 0xff4040 : 0xffffff}));
+    f.position.set(0, 0, 0.22);
+    f.rotation.z = (i / 3) * Math.PI * 2;
+    g.add(f);
+  }
+  return g;
 }
 
 // =============================================================================
@@ -1093,27 +1259,55 @@ function playSlingshotRelease() {
   noiseBurst(0.08, 0.4, 'highpass', 1200, 1);
   tone(180, 0.18, 'sine', 0.15, 0.005, 60);
 }
-function playPistolShot() {
-  tone(2200, 0.04, 'square', 0.18);
-  noiseBurst(0.1, 0.5, 'bandpass', 2000, 1);
-  tone(160, 0.18, 'sine', 0.18, 0.005, 50);
+function playArrowRelease() {
+  // bowstring twang + arrow whoosh
+  tone(220, 0.18, 'sawtooth', 0.18, 0.005, 80);
+  noiseBurst(0.18, 0.22, 'bandpass', 1500, 2);
 }
 function playShotgunShot() {
   tone(900, 0.06, 'square', 0.14);
-  noiseBurst(0.3, 0.85, 'lowpass', 800, 1, 4);
-  tone(80, 0.4, 'sine', 0.5, 0.005, 30);
+  noiseBurst(0.35, 0.95, 'lowpass', 800, 1, 4);
+  tone(70, 0.45, 'sine', 0.55, 0.005, 28);
 }
-function playMgShot() {
-  noiseBurst(0.05, 0.3, 'bandpass', 1500, 1);
-  tone(140, 0.06, 'sine', 0.2, 0.005, 70);
+function playGatlingShot() {
+  noiseBurst(0.04, 0.32, 'bandpass', 1700, 1);
+  tone(125, 0.06, 'sine', 0.22, 0.005, 65);
 }
-function playPlasmaShot() {
-  tone(440, 0.4, 'sine', 0.25, 0.01, 1500);
-  noiseBurst(0.15, 0.3, 'bandpass', 2400, 2);
+// Laser continuous hum
+let laserOsc = null, laserOscGain = null, laserNoise = null, laserNoiseGain = null;
+function startLaserHum() {
+  if (!audioCtx) return;
+  if (laserOsc) stopLaserHum();
+  laserOsc = audioCtx.createOscillator();
+  laserOsc.type = 'sawtooth';
+  laserOsc.frequency.value = 1100;
+  laserOscGain = audioCtx.createGain();
+  laserOscGain.gain.value = 0;
+  const filt = audioCtx.createBiquadFilter();
+  filt.type = 'bandpass'; filt.frequency.value = 2200; filt.Q.value = 4;
+  laserOsc.connect(filt).connect(laserOscGain).connect(masterGain);
+  laserOsc.start();
+  laserOscGain.gain.linearRampToValueAtTime(0.18, audioCtx.currentTime + 0.05);
+  // sizzle noise
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 1, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * 0.5;
+  laserNoise = audioCtx.createBufferSource();
+  laserNoise.buffer = buf; laserNoise.loop = true;
+  const filt2 = audioCtx.createBiquadFilter();
+  filt2.type = 'bandpass'; filt2.frequency.value = 3500; filt2.Q.value = 2;
+  laserNoiseGain = audioCtx.createGain(); laserNoiseGain.gain.value = 0;
+  laserNoise.connect(filt2).connect(laserNoiseGain).connect(masterGain);
+  laserNoise.start();
+  laserNoiseGain.gain.linearRampToValueAtTime(0.10, audioCtx.currentTime + 0.05);
 }
-function playPlasmaExplode() {
-  tone(80, 0.6, 'sine', 0.5, 0.005, 30);
-  noiseBurst(0.6, 0.7, 'lowpass', 400, 1, 5);
+function stopLaserHum() {
+  if (!laserOsc) return;
+  const osc = laserOsc, og = laserOscGain, no = laserNoise, ng = laserNoiseGain;
+  if (og) og.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.08);
+  if (ng) ng.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.08);
+  setTimeout(() => { try { osc.stop(); } catch(e){} try { no.stop(); } catch(e){} }, 120);
+  laserOsc = null; laserOscGain = null; laserNoise = null; laserNoiseGain = null;
 }
 function playUfoExplode() {
   noiseBurst(0.5, 0.6, 'bandpass', 500, 1, 6);
@@ -1356,6 +1550,7 @@ function startWave(idx) {
   setTimeout(() => playWeaponPickup(), 600);
   setInstr(null);
   equipWeapon(w.weapon);
+  updateScoreboard();
 }
 
 function spawnUfoForWave() {
@@ -1457,6 +1652,7 @@ function killUfo(u) {
   playUfoExplode();
   if (!u.isBoss) pulseAll(0.5, 100);
   updateHUD();
+  updateScoreboard();
   setTimeout(checkWaveComplete, 50);
 }
 
@@ -1485,6 +1681,7 @@ function abductChicken(c) {
   flashHurt();
   pulseAll(0.5, 200);
   updateHUD();
+  updateScoreboard();
   if (chickensAlive() === 0) enterGameOver();
 }
 
@@ -1564,8 +1761,8 @@ function onTriggerStart(ctrl) {
   }
   if (state !== 'playing' && state !== 'wave_intro') return;
 
-  // SLINGSHOT: left trigger grabs pouch
-  if (activeWeapon === 'slingshot' && ctrl === leftCtrl) {
+  // SLINGSHOT or CROSSBOW: left trigger grabs pouch/string
+  if ((activeWeapon === 'slingshot' || activeWeapon === 'crossbow') && ctrl === leftCtrl) {
     const lh = new THREE.Vector3();
     leftCtrl.getWorldPosition(lh);
     const restW = getPouchRestWorld();
@@ -1576,19 +1773,30 @@ function onTriggerStart(ctrl) {
     }
     return;
   }
-  // OTHER WEAPONS: right trigger fires
-  if (ctrl === rightCtrl && weaponCD <= 0) {
-    if (activeWeapon === 'pistol') firePistol();
-    else if (activeWeapon === 'shotgun') fireShotgun();
-    else if (activeWeapon === 'machinegun') fireMachinegunBurst();
-    else if (activeWeapon === 'plasma') firePlasma();
+  // LASER: right trigger starts continuous beam
+  if (activeWeapon === 'laser' && ctrl === rightCtrl) {
+    startLaserBeam();
+    return;
+  }
+  // SHOTGUN / GATLING: right trigger — input buffer (queue if cooldown)
+  if (ctrl === rightCtrl) {
+    if (weaponCD <= 0) {
+      if (activeWeapon === 'shotgun') fireShotgun();
+      else if (activeWeapon === 'gatling') fireGatlingBurst();
+    } else {
+      pendingShot = true;
+    }
   }
 }
 
 function onTriggerEnd(ctrl) {
-  if (activeWeapon === 'slingshot' && ctrl === leftCtrl && pouchGrabbed) {
-    fireSlingshotPouch();
+  if ((activeWeapon === 'slingshot' || activeWeapon === 'crossbow') && ctrl === leftCtrl && pouchGrabbed) {
+    if (activeWeapon === 'slingshot') fireSlingshotPouch();
+    else fireCrossbowArrow();
     pouchGrabbed = false;
+  }
+  if (activeWeapon === 'laser' && ctrl === rightCtrl) {
+    stopLaserBeam();
   }
 }
 
@@ -1644,8 +1852,19 @@ document.addEventListener('pointerlockchange', () => {
   mouseLocked = document.pointerLockElement === renderer.domElement;
 });
 
-addEventListener('mousedown', e => { if (mouseLocked) mouseDown = true; });
-addEventListener('mouseup', e => { mouseDown = false; });
+addEventListener('mousedown', e => {
+  if (mouseLocked) {
+    mouseDown = true;
+    // Laser: hold mouse to fire beam
+    if ((state === 'playing' || state === 'wave_intro') && activeWeapon === 'laser') {
+      startLaserBeam();
+    }
+  }
+});
+addEventListener('mouseup', e => {
+  mouseDown = false;
+  if (activeWeapon === 'laser' && laserBeamActive) stopLaserBeam();
+});
 
 renderer.domElement.addEventListener('click', () => {
   if (!renderer.xr.isPresenting && !mouseLocked) {
@@ -1666,22 +1885,36 @@ renderer.domElement.addEventListener('click', () => {
 
 function desktopShoot() {
   if (activeWeapon === 'slingshot') {
-    // simplified slingshot: just fire pebble forward with full power
     const camPos = new THREE.Vector3(); camera.getWorldPosition(camPos);
     const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
     const proj = makePebbleMesh();
     proj.position.copy(camPos).addScaledVector(dir, 0.3);
     proj.userData.vel = dir.clone().multiplyScalar(MAX_SHOT_SPEED);
-    proj.userData.life = 0; proj.userData.damage = 1; proj.userData.gravity = true;
+    proj.userData.life = 0; proj.userData.damage = 2; proj.userData.gravity = true;
     scene.add(proj); projectiles.push(proj);
     playSlingshotRelease();
-    weaponCD = 0.4;
+    weaponCD = 0.35;
     return;
   }
-  if (activeWeapon === 'pistol') firePistol();
-  else if (activeWeapon === 'shotgun') fireShotgun();
-  else if (activeWeapon === 'machinegun') fireMachinegunBurst();
-  else if (activeWeapon === 'plasma') firePlasma();
+  if (activeWeapon === 'crossbow') {
+    const camPos = new THREE.Vector3(); camera.getWorldPosition(camPos);
+    const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+    const arrow = makeArrowMesh();
+    arrow.position.copy(camPos).addScaledVector(dir, 0.3);
+    arrow.userData.vel = dir.clone().multiplyScalar(CROSSBOW_ARROW_SPEED);
+    arrow.userData.life = 0; arrow.userData.damage = 2; arrow.userData.gravity = false;
+    arrow.userData.isArrow = true;
+    const arrowQ = new THREE.Quaternion();
+    arrowQ.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir);
+    arrow.quaternion.copy(arrowQ);
+    scene.add(arrow); projectiles.push(arrow);
+    playArrowRelease();
+    weaponCD = 0.45;
+    return;
+  }
+  if (activeWeapon === 'shotgun') fireShotgun();
+  else if (activeWeapon === 'gatling') fireGatlingBurst();
+  // laser handled by mousedown/mouseup
 }
 
 let yaw = 0, pitch = 0;
@@ -1731,12 +1964,26 @@ renderer.setAnimationLoop(() => {
     if (c.position.x > 200) c.position.x = -200;
   }
 
-  // Plasma weapon idle animation
-  if (activeWeapon === 'plasma' && plasma.userData.core) {
-    plasma.userData.core.scale.setScalar(1 + Math.sin(nowMs * 0.008) * 0.2);
-    plasma.userData.ring.rotation.z += dt * 3;
-    plasma.userData.ring2.rotation.z -= dt * 4;
+  // Laser idle animation
+  if (activeWeapon === 'laser' && laser.userData.core) {
+    laser.userData.core.scale.setScalar(1 + Math.sin(nowMs * 0.012) * 0.3);
+    laser.userData.ring.rotation.z += dt * 5;
+    laser.userData.emitter.material.emissive.setHex(laserBeamActive ? 0xff4060 : 0x401020);
   }
+  // Gatling spin
+  if (activeWeapon === 'gatling') {
+    const targetSpin = (triggerHeld.right || mouseDown) ? 30 : 0;
+    gatling.userData.spinSpeed += (targetSpin - gatling.userData.spinSpeed) * dt * 6;
+    gatling.userData.barrels.rotation.z += gatling.userData.spinSpeed * dt;
+  }
+  // Drain pending shot when cooldown clears
+  if (pendingShot && weaponCD <= 0 && (state === 'playing' || state === 'wave_intro')) {
+    pendingShot = false;
+    if (activeWeapon === 'shotgun') fireShotgun();
+    else if (activeWeapon === 'gatling') fireGatlingBurst();
+  }
+  // Tick laser beam (continuous)
+  if (laserBeamActive) tickLaser(dt);
 
   // === WEAPON SYNC ===
   const sActive = (state === 'playing' || state === 'wave_intro' || state === 'wave_complete');
@@ -1752,7 +1999,7 @@ renderer.setAnimationLoop(() => {
     if (rightCtrl === controller1) ctrlVis1.visible = false; else ctrlVis2.visible = false;
     if (leftCtrl === controller1) ctrlVis1.visible = true; else ctrlVis2.visible = true;
 
-    if (activeWeapon === 'slingshot') {
+    if (activeWeapon === 'slingshot' || activeWeapon === 'crossbow') {
       pouchMesh.visible = true;
       pebbleReadyMesh.visible = !pouchGrabbed;
       elasticL.visible = true;
@@ -1761,8 +2008,23 @@ renderer.setAnimationLoop(() => {
       pouchMesh.position.copy(pp);
       pouchMesh.lookAt(camera.getWorldPosition(new THREE.Vector3()));
       pebbleReadyMesh.position.copy(pp);
-      const tipLW = new THREE.Vector3(); slTipL.getWorldPosition(tipLW);
-      const tipRW = new THREE.Vector3(); slTipR.getWorldPosition(tipRW);
+      // Orient pebble (arrow shape for crossbow) along firing direction
+      if (activeWeapon === 'crossbow') {
+        const restW = getPouchRestWorld();
+        const fdir = restW.clone().sub(pp);
+        if (fdir.lengthSq() > 1e-6) {
+          fdir.normalize();
+          const q = new THREE.Quaternion();
+          q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fdir);
+          pebbleReadyMesh.quaternion.copy(q);
+        }
+      } else {
+        pebbleReadyMesh.quaternion.identity();
+      }
+      const tipLObj = activeWeapon === 'crossbow' ? cbTipL : slTipL;
+      const tipRObj = activeWeapon === 'crossbow' ? cbTipR : slTipR;
+      const tipLW = new THREE.Vector3(); tipLObj.getWorldPosition(tipLW);
+      const tipRW = new THREE.Vector3(); tipRObj.getWorldPosition(tipRW);
       elasticL.geometry.setFromPoints([tipLW, pp]);
       elasticR.geometry.setFromPoints([tipRW, pp]);
       elasticL.geometry.attributes.position.needsUpdate = true;
@@ -1774,9 +2036,9 @@ renderer.setAnimationLoop(() => {
       elasticR.visible = false;
     }
 
-    // Machinegun continuous fire
-    if (activeWeapon === 'machinegun' && triggerHeld.right && weaponCD <= 0) {
-      fireMachinegunBurst();
+    // Gatling continuous fire (hold trigger)
+    if (activeWeapon === 'gatling' && triggerHeld.right && weaponCD <= 0) {
+      fireGatlingBurst();
     }
   } else if (sActive && !renderer.xr.isPresenting) {
     const camPos = new THREE.Vector3(); camera.getWorldPosition(camPos);
@@ -1791,9 +2053,9 @@ renderer.setAnimationLoop(() => {
     elasticL.visible = false;
     elasticR.visible = false;
     ctrlVis1.visible = false; ctrlVis2.visible = false;
-    // Machinegun continuous fire on desktop hold
-    if (activeWeapon === 'machinegun' && mouseDown && weaponCD <= 0) {
-      fireMachinegunBurst();
+    // Gatling continuous fire on desktop hold
+    if (activeWeapon === 'gatling' && mouseDown && weaponCD <= 0) {
+      fireGatlingBurst();
     }
   } else {
     for (const k of Object.keys(allWeaponGroups)) allWeaponGroups[k].visible = false;
@@ -1994,52 +2256,27 @@ renderer.setAnimationLoop(() => {
     p.position.addScaledVector(p.userData.vel, dt);
     p.userData.life += dt;
     let removed = false;
-    if (p.userData.isPlasma) {
-      // Check if hits any UFO
-      for (const u of ufos) {
-        if (u.state === 'dead' || u.state === 'escaping_done') continue;
-        if (p.position.distanceTo(u.group.position) < UFO_HIT_RADIUS * (u.isBoss ? 2.4 : 1)) {
-          // Plasma explodes here
-          spawnExplosion(p.position, 3, 0x80ffe0);
-          playPlasmaExplode();
-          // Damage all UFOs in radius
-          for (const u2 of ufos) {
-            if (u2.state === 'dead' || u2.state === 'escaping_done') continue;
-            const d = p.position.distanceTo(u2.group.position);
-            if (d < 3.0) {
-              const dmg = Math.max(1, Math.floor(p.userData.damage * (1 - d / 3.0)));
-              damageUfo(u2, dmg);
-            }
-          }
-          scene.remove(p);
-          projectiles.splice(i, 1);
-          removed = true;
-          break;
-        }
+    for (const u of ufos) {
+      if (u.state === 'dead' || u.state === 'escaping_done') continue;
+      if (p.position.distanceTo(u.group.position) < UFO_HIT_RADIUS * (u.isBoss ? 2.4 : 1)) {
+        damageUfo(u, p.userData.damage);
+        scene.remove(p);
+        projectiles.splice(i, 1);
+        removed = true;
+        break;
       }
-    } else {
-      for (const u of ufos) {
-        if (u.state === 'dead' || u.state === 'escaping_done') continue;
-        if (p.position.distanceTo(u.group.position) < UFO_HIT_RADIUS * (u.isBoss ? 2.4 : 1)) {
-          damageUfo(u, p.userData.damage);
-          scene.remove(p);
-          projectiles.splice(i, 1);
-          removed = true;
-          break;
-        }
+    }
+    // Orient arrows to fly along velocity direction
+    if (!removed && p.userData.isArrow) {
+      const v = p.userData.vel.clone();
+      if (v.lengthSq() > 1e-6) {
+        v.normalize();
+        const q = new THREE.Quaternion();
+        q.setFromUnitVectors(new THREE.Vector3(0, 0, -1), v);
+        p.quaternion.copy(q);
       }
     }
     if (!removed && (p.userData.life > 5 || p.position.y < -5)) {
-      // Plasma that didn't hit anything fades out and explodes
-      if (p.userData.isPlasma) {
-        spawnExplosion(p.position, 2, 0x80ffe0);
-        playPlasmaExplode();
-        for (const u2 of ufos) {
-          if (u2.state === 'dead' || u2.state === 'escaping_done') continue;
-          const d = p.position.distanceTo(u2.group.position);
-          if (d < 2.0) damageUfo(u2, Math.max(1, Math.floor(p.userData.damage * (1 - d / 2.0))));
-        }
-      }
       scene.remove(p);
       projectiles.splice(i, 1);
     }
@@ -2141,6 +2378,75 @@ setInterval(() => {
   hudEl.textContent = `${state} · w${currentWave+1}/${WAVES.length} · spawn ${waveSpawnedCount}/${WAVES[currentWave]?.count} · ufos:${ufos.filter(u=>u.state!=='dead').length} · chk:${chickensAlive()}/${TOTAL_CHICKENS} · kills:${ufosKilled} · wpn:${activeWeapon}`;
   updateHUD();
 }, 250);
+
+// =============================================================================
+// 3D SCOREBOARD — placa de rancho flutuando, visível em VR
+// =============================================================================
+const sbCanvas = document.createElement('canvas');
+sbCanvas.width = 1024; sbCanvas.height = 384;
+const sbCtx = sbCanvas.getContext('2d');
+const sbTex = new THREE.CanvasTexture(sbCanvas);
+const sbMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(2.0, 0.75),
+  new THREE.MeshBasicMaterial({map: sbTex, transparent: true, fog: false, side: THREE.DoubleSide})
+);
+sbMesh.position.set(0, 2.4, 1.4);
+sbMesh.lookAt(0, 1.6, 0);
+scene.add(sbMesh);
+
+// Wood-frame scoreboard with a hanging chain look
+const sbChainL = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 6), new THREE.MeshLambertMaterial({color:0x303030}));
+sbChainL.position.set(-0.85, 2.7, 1.4); scene.add(sbChainL);
+const sbChainR = sbChainL.clone(); sbChainR.position.x = 0.85; scene.add(sbChainR);
+
+function updateScoreboard() {
+  const w = WAVES[currentWave] || WAVES[0];
+  const ctx = sbCtx;
+  // Wooden background
+  ctx.fillStyle = '#5a3818'; ctx.fillRect(0, 0, 1024, 384);
+  // Wood grain
+  ctx.strokeStyle = 'rgba(40,20,8,0.4)'; ctx.lineWidth = 2;
+  for (let i = 0; i < 8; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, i * 50);
+    ctx.bezierCurveTo(300, i*50 + 8, 700, i*50 - 8, 1024, i*50);
+    ctx.stroke();
+  }
+  // Inner border
+  ctx.strokeStyle = '#8a6a40'; ctx.lineWidth = 8;
+  ctx.strokeRect(20, 20, 984, 344);
+  ctx.strokeStyle = '#3a2010'; ctx.lineWidth = 2;
+  ctx.strokeRect(20, 20, 984, 344);
+
+  // Title
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#ffd040';
+  ctx.font = 'bold 56px Impact, sans-serif';
+  ctx.fillText('🐔 RANCH DEFENSE 🛸', 512, 36);
+
+  // Wave + weapon
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 64px Impact, sans-serif';
+  ctx.fillText('WAVE ' + (currentWave + 1) + ' / ' + WAVES.length, 512, 100);
+  ctx.fillStyle = '#80ff40';
+  ctx.font = 'bold 44px Impact, sans-serif';
+  ctx.fillText('🔫 ' + w.label, 512, 175);
+
+  // Chickens row
+  ctx.font = '60px sans-serif';
+  let chickStr = '';
+  const alive = chickensAlive();
+  for (let i = 0; i < TOTAL_CHICKENS; i++) chickStr += i < alive ? '🐔' : '💀';
+  ctx.fillText(chickStr, 512, 235);
+
+  // Kills
+  ctx.fillStyle = '#ff8060';
+  ctx.font = 'bold 36px Impact, sans-serif';
+  ctx.fillText('🛸 ABATIDOS: ' + ufosKilled, 512, 318);
+
+  sbTex.needsUpdate = true;
+}
+updateScoreboard();
 
 // initial weapon
 equipWeapon('slingshot');
