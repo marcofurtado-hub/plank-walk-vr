@@ -1985,6 +1985,26 @@ renderer.setAnimationLoop(() => {
   // Tick laser beam (continuous)
   if (laserBeamActive) tickLaser(dt);
 
+  // 3D banner fade
+  if (bannerMesh.visible) {
+    bannerLife += dt;
+    let alpha = 1.0;
+    if (bannerDuration < 100) {
+      // Fade out at end
+      alpha = Math.min(1, bannerLife / 0.3) * Math.max(0, 1 - (bannerLife - bannerDuration + 0.5) / 0.5);
+      if (bannerLife > bannerDuration) {
+        bannerMesh.visible = false;
+      }
+    } else {
+      // Persistent (game over / victory) — pulse
+      alpha = 0.85 + Math.sin(bannerLife * 4) * 0.15;
+    }
+    bannerMesh.material.opacity = Math.max(0, Math.min(1, alpha));
+    // Always face the player
+    const camPos = new THREE.Vector3(); camera.getWorldPosition(camPos);
+    bannerMesh.lookAt(camPos);
+  }
+
   // === WEAPON SYNC ===
   const sActive = (state === 'playing' || state === 'wave_intro' || state === 'wave_complete');
   const activeGroup = allWeaponGroups[activeWeapon];
@@ -2447,6 +2467,89 @@ function updateScoreboard() {
   sbTex.needsUpdate = true;
 }
 updateScoreboard();
+
+// =============================================================================
+// 3D BANNER (wave / game over / victory) — visível em VR também
+// =============================================================================
+const bannerCanvas = document.createElement('canvas');
+bannerCanvas.width = 1024; bannerCanvas.height = 320;
+const bannerCtx = bannerCanvas.getContext('2d');
+const bannerTex = new THREE.CanvasTexture(bannerCanvas);
+const bannerMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(2.4, 0.75),
+  new THREE.MeshBasicMaterial({map: bannerTex, transparent: true, fog: false, depthTest: false, side: THREE.DoubleSide})
+);
+bannerMesh.renderOrder = 998;
+bannerMesh.visible = false;
+scene.add(bannerMesh);
+let bannerLife = 0;
+let bannerDuration = 2.4;
+
+function drawBanner(title, subtitle, weaponLabel, color) {
+  const ctx = bannerCtx;
+  ctx.clearRect(0, 0, 1024, 320);
+  // semi-transparent dark
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, 1024, 320);
+  ctx.strokeStyle = color || '#ffd040';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(8, 8, 1008, 304);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = color || '#ffd040';
+  ctx.shadowBlur = 24;
+  ctx.fillStyle = color || '#ffd040';
+  ctx.font = 'bold 130px Impact, sans-serif';
+  ctx.fillText(title, 512, 100);
+  ctx.shadowBlur = 0;
+  if (subtitle) {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 38px sans-serif';
+    ctx.fillText(subtitle, 512, 200);
+  }
+  if (weaponLabel) {
+    ctx.fillStyle = '#80ff40';
+    ctx.font = 'bold 48px Impact, sans-serif';
+    ctx.fillText('🔫 ' + weaponLabel, 512, 265);
+  }
+  bannerTex.needsUpdate = true;
+}
+
+function showBanner3D(title, subtitle, weaponLabel, color, duration) {
+  drawBanner(title, subtitle, weaponLabel, color);
+  bannerMesh.visible = true;
+  bannerLife = 0;
+  bannerDuration = duration || 2.4;
+  // Position in front of camera at fire time
+  const camPos = new THREE.Vector3(); camera.getWorldPosition(camPos);
+  const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir);
+  bannerMesh.position.copy(camPos).addScaledVector(camDir, 3.0);
+  bannerMesh.position.y = camPos.y + 0.4;
+  bannerMesh.lookAt(camPos);
+}
+
+// Hook into existing wave/game state functions
+const _origStartWave = startWave;
+startWave = function(idx) {
+  _origStartWave(idx);
+  const w = WAVES[idx];
+  showBanner3D('WAVE ' + (idx + 1), idx === WAVES.length - 1 ? 'WAVE FINAL' : 'PREPARE-SE', w.label, '#ffd040', 2.6);
+};
+const _origEnterGameOver = enterGameOver;
+enterGameOver = function() {
+  _origEnterGameOver();
+  showBanner3D('GAME OVER', 'aperte trigger pra recomeçar', null, '#ff4040', 999);
+};
+const _origEnterVictory = enterVictory;
+enterVictory = function() {
+  _origEnterVictory();
+  showBanner3D('VITÓRIA!', 'aperte trigger pra jogar de novo', null, '#ffd040', 999);
+};
+const _origResetGame = resetGame;
+resetGame = function() {
+  _origResetGame();
+  bannerMesh.visible = false;
+};
 
 // initial weapon
 equipWeapon('slingshot');
