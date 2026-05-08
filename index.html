@@ -567,6 +567,18 @@ function makeChicken() {
 }
 
 const chickens = [];
+function scareChicken(c, fromPos) {
+  if (c.state === 'gone' || c.state === 'abducting' || c.state === 'scared' || c.state === 'safe') return;
+  c.state = 'scared';
+  c.scaredT = 0;
+  // Velocity: pula pra cima + se afasta do impacto
+  const dx = c.group.position.x - fromPos.x;
+  const dz = c.group.position.z - fromPos.z;
+  const horizMag = Math.hypot(dx, dz) || 1;
+  c.scaredVel = new THREE.Vector3(dx / horizMag * 2.4, 3.2, dz / horizMag * 2.4);
+  playCluck();
+}
+
 function pickChickenTarget() {
   return new THREE.Vector3(
     (Math.random() - 0.5) * (YARD_HALF_X * 2 - 2),
@@ -2418,6 +2430,30 @@ renderer.setAnimationLoop(() => {
       c.wingL.rotation.z = 0.5 + Math.sin(nowMs * 0.02) * 0.5;
       c.wingR.rotation.z = -0.5 - Math.sin(nowMs * 0.02) * 0.5;
       c.group.rotation.y += dt * 3;
+    } else if (c.state === 'scared') {
+      c.scaredT += dt;
+      c.scaredVel.y -= 9.8 * dt;
+      c.group.position.addScaledVector(c.scaredVel, dt);
+      if (c.group.position.y <= 0) {
+        c.group.position.y = 0;
+        c.scaredVel.y = Math.max(0, c.scaredVel.y);
+        // Atrito horizontal
+        c.scaredVel.x *= 0.85;
+        c.scaredVel.z *= 0.85;
+      }
+      // Asas batendo em pânico
+      c.wingL.rotation.z = 0.6 + Math.sin(c.scaredT * 22) * 0.6;
+      c.wingR.rotation.z = -0.6 - Math.sin(c.scaredT * 22) * 0.6;
+      // Mantém dentro do quintal
+      c.group.position.x = Math.max(-(YARD_HALF_X - 0.5), Math.min(YARD_HALF_X - 0.5, c.group.position.x));
+      c.group.position.z = Math.max(YARD_NEAR + 0.5, Math.min(YARD_FAR - 0.5, c.group.position.z));
+      if (c.scaredT > 1.4) {
+        c.state = 'wandering';
+        c.target = pickChickenTarget();
+        c.wingL.rotation.z = 0;
+        c.wingR.rotation.z = 0;
+        if (Math.random() < 0.5) playCluck();
+      }
     } else if (c.state === 'safe') {
       c.fallVel += 9.8 * dt;
       c.group.position.y -= c.fallVel * dt;
@@ -2639,6 +2675,47 @@ renderer.setAnimationLoop(() => {
         const q = new THREE.Quaternion();
         q.setFromUnitVectors(new THREE.Vector3(0, 0, -1), v);
         p.quaternion.copy(q);
+      }
+    }
+    // Bounce eggs no chão (e assusta galinhas próximas)
+    if (!removed && p.userData.isEgg && p.userData.gravity && p.position.y <= 0.04 && p.userData.vel.y < 0) {
+      // Assusta galinhas próximas
+      for (const ck of chickens) {
+        if (ck.state === 'gone' || ck.state === 'abducting' || ck.state === 'scared') continue;
+        const d = Math.hypot(ck.group.position.x - p.position.x, ck.group.position.z - p.position.z);
+        if (d < 1.6) scareChicken(ck, p.position);
+      }
+      p.userData.bounceCount = (p.userData.bounceCount || 0) + 1;
+      const speed = p.userData.vel.length();
+      if (p.userData.bounceCount > 2 || speed < 1.5) {
+        // Estoura — splat e remove
+        if (debris.length < MAX_DEBRIS) {
+          playEggSplat();
+          const yolk = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), new THREE.MeshLambertMaterial({color:0xffd040}));
+          yolk.position.copy(p.position); yolk.position.y = 0.05;
+          yolk.userData.vel = new THREE.Vector3(0, 0, 0);
+          yolk.userData.rot = new THREE.Vector3(0, 0, 0);
+          yolk.userData.life = 0;
+          scene.add(yolk); debris.push(yolk);
+          for (let k = 0; k < 4; k++) {
+            const piece = new THREE.Mesh(new THREE.SphereGeometry(0.018, 4, 3), new THREE.MeshLambertMaterial({color:0xfaf6e8}));
+            piece.position.copy(p.position);
+            piece.userData.vel = new THREE.Vector3((Math.random()-0.5)*1.5, 0.3+Math.random()*0.4, (Math.random()-0.5)*1.5);
+            piece.userData.rot = new THREE.Vector3(0,0,0);
+            piece.userData.life = 0;
+            scene.add(piece); debris.push(piece);
+          }
+        }
+        scene.remove(p);
+        projectiles.splice(i, 1);
+        removed = true;
+      } else {
+        // Quica
+        p.position.y = 0.04;
+        p.userData.vel.y = -p.userData.vel.y * 0.45;
+        p.userData.vel.x *= 0.7;
+        p.userData.vel.z *= 0.7;
+        playEggThrow(); // som suave de toc
       }
     }
     if (!removed && (p.userData.life > 5 || p.position.y < -5)) {
