@@ -1882,10 +1882,8 @@ function onTriggerStart(ctrl) {
   }
   if (state !== 'playing' && state !== 'wave_intro') return;
 
-  // HANDS: trigger doesn't do anything immediate — the throw happens on RELEASE
-  if (activeWeapon === 'hands') {
-    return;
-  }
+  // HANDS: trigger não faz nada — arremesso é por movimento (detectado no main loop)
+  if (activeWeapon === 'hands') return;
   // SLINGSHOT or CROSSBOW: left trigger grabs pouch/string
   if ((activeWeapon === 'slingshot' || activeWeapon === 'crossbow') && ctrl === leftCtrl) {
     const lh = new THREE.Vector3();
@@ -1923,23 +1921,7 @@ function onTriggerEnd(ctrl) {
   if (activeWeapon === 'laser' && ctrl === rightCtrl) {
     stopLaserBeam();
   }
-  // HANDS: throw egg with controller's current velocity
-  if (activeWeapon === 'hands' && (state === 'playing' || state === 'wave_intro')) {
-    const isLeft = ctrl === leftCtrl;
-    const ready = isLeft ? eggReadyLeft : eggReadyRight;
-    if (!ready) return;
-    const vel = isLeft ? ctrlVel.left : ctrlVel.right;
-    throwEgg(ctrl, vel);
-    if (isLeft) {
-      eggReadyLeft = false;
-      eggInLeftHand.visible = false;
-      setTimeout(() => { eggReadyLeft = true; if (activeWeapon === 'hands') eggInLeftHand.visible = true; }, 350);
-    } else {
-      eggReadyRight = false;
-      eggInRightHand.visible = false;
-      setTimeout(() => { eggReadyRight = true; if (activeWeapon === 'hands') eggInRightHand.visible = true; }, 350);
-    }
-  }
+  // HANDS: arremesso é por movimento, não por trigger
 }
 
 // =============================================================================
@@ -2148,6 +2130,24 @@ renderer.setAnimationLoop(() => {
     ctrlVel.right.copy(rp).sub(ctrlPrevPos.right).divideScalar(Math.max(dt, 0.001));
     ctrlPrevPos.left.copy(lp);
     ctrlPrevPos.right.copy(rp);
+  }
+
+  // HANDS: detect "strong intentional throw" by velocity threshold
+  // Threshold de ~3 m/s descarta tremor casual; throw natural fica entre 4-10 m/s
+  const HAND_THROW_VEL = 3.0;
+  if (activeWeapon === 'hands' && (state === 'playing' || state === 'wave_intro') && renderer.xr.isPresenting) {
+    if (eggReadyLeft && ctrlVel.left.length() > HAND_THROW_VEL) {
+      throwEgg(leftCtrl, ctrlVel.left);
+      eggReadyLeft = false;
+      eggInLeftHand.visible = false;
+      setTimeout(() => { eggReadyLeft = true; if (activeWeapon === 'hands') eggInLeftHand.visible = true; }, 380);
+    }
+    if (eggReadyRight && ctrlVel.right.length() > HAND_THROW_VEL) {
+      throwEgg(rightCtrl, ctrlVel.right);
+      eggReadyRight = false;
+      eggInRightHand.visible = false;
+      setTimeout(() => { eggReadyRight = true; if (activeWeapon === 'hands') eggInRightHand.visible = true; }, 380);
+    }
   }
 
   // HANDS: position eggs in each hand with small offset toward palm
