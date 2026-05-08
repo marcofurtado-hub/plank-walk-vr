@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>plank walk VR — Quest 2</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:#000;overflow:hidden;font-family:'Helvetica Neue','Segoe UI',Arial,sans-serif;user-select:none;-webkit-user-select:none}
+canvas{display:block}
+
+#start{position:fixed;inset:0;background:radial-gradient(ellipse at center,#1a0030 0%,#000 100%);z-index:30;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:20px;color:#fff;text-align:center;cursor:pointer;touch-action:manipulation}
+#start h1{font-size:72px;letter-spacing:6px;color:#a020ff;text-shadow:0 0 30px rgba(160,32,255,0.8),0 0 60px rgba(160,32,255,0.4);margin-bottom:6px;font-family:'Impact','Arial Black',sans-serif}
+#start .sub{color:#d8a8ff;font-size:13px;letter-spacing:4px;margin-bottom:24px;opacity:0.9}
+#start .panel{background:rgba(20,5,40,0.7);border:1px solid rgba(160,32,255,0.4);padding:18px 28px;max-width:540px;text-align:left;line-height:1.7;font-size:14px;color:#cfcfcf;border-radius:6px;box-shadow:0 0 40px rgba(160,32,255,0.15)}
+#start .panel b{color:#d8a8ff}
+#start .panel .warn{color:#ffa040;display:block;margin-top:12px;font-size:13px;border-top:1px solid rgba(255,160,64,0.2);padding-top:10px}
+#start .hint{color:#888;font-size:12px;margin-top:14px;letter-spacing:1px}
+#start .hint b{color:#a020ff}
+
+#hud{position:fixed;top:6px;left:8px;color:#666;font-size:10px;font-family:monospace;pointer-events:none;z-index:5;text-shadow:0 0 4px #000;opacity:0.6}
+#instr{position:fixed;top:80px;left:50%;transform:translateX(-50%);color:#fff;font-size:15px;background:rgba(0,0,0,0.65);padding:10px 20px;border-radius:6px;letter-spacing:1px;z-index:6;pointer-events:none;display:none;border:1px solid rgba(160,32,255,0.4)}
+#instr.show{display:block}
+
+#fade{position:fixed;inset:0;pointer-events:none;z-index:25;background:radial-gradient(ellipse at center,#a00 0%,#400 100%);opacity:0;transition:opacity 0.35s}
+#fade.show{opacity:0.92}
+#fade .splat{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Impact','Arial Black',sans-serif;font-size:90px;letter-spacing:8px;text-shadow:0 0 20px rgba(0,0,0,0.8);opacity:0;transition:opacity 0.4s 0.2s}
+#fade.show .splat{opacity:1}
+</style>
+</head>
+<body>
+
+<div id="start">
+  <h1>PLANK&nbsp;WALK</h1>
+  <div class="sub">QUEST 2 · WEBXR · DON'T LOOK DOWN</div>
+  <div class="panel">
+    <b>Você está no elevador.</b> Aperte o botão vermelho na parede e suba até o 80º andar. A porta vai abrir num saguão no topo do prédio. Lá fora tem uma <b>tábua de madeira</b> saindo pra fora — sobre o vazio.<br><br>
+    Atravesse. Ou olhe pra baixo e perceba que não consegue.<br><br>
+    <b>Controles VR:</b> thumbstick esquerdo anda, thumbstick direito vira (snap), trigger interage. <b>Recomendado room-scale</b> com ~2m livres na frente.<br>
+    <b>Desktop preview:</b> WASD anda, mouse olha, <b>E</b> aperta o botão.
+    <span class="warn">⚠ Vertigem real é possível mesmo sabendo que é jogo. Sente antes se for sensível a altura.</span>
+  </div>
+  <div class="hint">Toque a tela e clique <b>ENTER VR</b> embaixo (Quest 2 browser).<br>Ou clique aqui pra preview no desktop.</div>
+</div>
+
+<div id="hud"></div>
+<div id="instr"></div>
+<div id="fade"><div class="splat">SPLAT</div></div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import {VRButton} from 'three/addons/webxr/VRButton.js';
+
+// =============================================================================
+// CONSTANTS
+// =============================================================================
+const ROOF_Y = 80;            // top of rooftop slab in world space
+const ROOF_HALF = 4;          // roof is 8x8
+const PLANK_LEN = 3;
+const PLANK_W = 0.42;
+const PLANK_T = 0.06;
+const PLANK_CENTER_Z = 4;     // plank straddles +z edge of roof (1.5m on roof, 1.5m hanging)
+const PLANK_BACK_Z = PLANK_CENTER_Z - PLANK_LEN/2;   // 2.5
+const PLANK_FRONT_Z = PLANK_CENTER_Z + PLANK_LEN/2;  // 5.5
+const ELEV_Z = -2.6;          // elevator center z (inside roof footprint, opens toward +z)
+
+// =============================================================================
+// RENDERER + SCENE
+// =============================================================================
+const renderer = new THREE.WebGLRenderer({antialias:false, powerPreference:'high-performance'});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setClearColor(0x88bce0);
+renderer.xr.enabled = true;
+try { renderer.xr.setReferenceSpaceType('local-floor'); } catch(e) {}
+document.body.prepend(renderer.domElement);
+
+const vrBtn = VRButton.createButton(renderer);
+vrBtn.style.cssText += ';position:fixed;bottom:22px;left:50%;transform:translateX(-50%);'
+  + 'z-index:35;background:#a020ff;color:#fff;border:3px solid #fff;font-family:inherit;'
+  + 'font-weight:bold;font-size:18px;letter-spacing:3px;border-radius:6px;'
+  + 'padding:14px 32px;cursor:pointer;box-shadow:0 0 30px rgba(160,32,255,0.5)';
+document.body.appendChild(vrBtn);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x9cc8e4, 90, 380);
+
+const camera = new THREE.PerspectiveCamera(80, innerWidth/innerHeight, 0.05, 1500);
+camera.position.set(0, 1.6, 0);
+const cameraRig = new THREE.Group();
+cameraRig.add(camera);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// =============================================================================
+// LIGHTING
+// =============================================================================
+const sun = new THREE.DirectionalLight(0xfff0d0, 1.3);
+sun.position.set(120, 220, 80);
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xa8d8ff, 0x806848, 0.7));
+scene.add(new THREE.AmbientLight(0xffffff, 0.22));
+
+// =============================================================================
+// SKY (gradient sphere, fog-immune)
+// =============================================================================
+const skyMat = new THREE.ShaderMaterial({
+  uniforms: {
+    topColor:    { value: new THREE.Color(0x4a90d8) },
+    midColor:    { value: new THREE.Color(0x9cc8e4) },
+    bottomColor: { value: new THREE.Color(0xc8d8b8) }
+  },
+  vertexShader: `varying vec3 vWorld; void main(){ vWorld = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+  fragmentShader: `
+    uniform vec3 topColor; uniform vec3 midColor; uniform vec3 bottomColor;
+    varying vec3 vWorld;
+    void main(){
+      float h = vWorld.y / 800.0;
+      vec3 c = mix(bottomColor, midColor, smoothstep(-0.4, 0.05, h));
+      c = mix(c, topColor, smoothstep(0.05, 0.7, h));
+      gl_FragColor = vec4(c, 1.0);
+    }`,
+  side: THREE.BackSide,
+  fog: false
+});
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(800, 24, 16), skyMat));
+
+// Sun disc (visible)
+const sunDisc = new THREE.Mesh(
+  new THREE.CircleGeometry(18, 24),
+  new THREE.MeshBasicMaterial({color:0xfff0c0, fog:false})
+);
+sunDisc.position.set(380, 220, 240);
+sunDisc.lookAt(0, 80, 0);
+scene.add(sunDisc);
+
+// Clouds — flat planes
+const cloudMat = new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.85, fog:false});
+for (let i = 0; i < 18; i++) {
+  const w = 30 + Math.random()*40;
+  const cloud = new THREE.Mesh(new THREE.PlaneGeometry(w, w*0.45), cloudMat);
+  const angle = Math.random() * Math.PI * 2;
+  const dist = 180 + Math.random()*180;
+  cloud.position.set(Math.cos(angle)*dist, 60 + Math.random()*80, Math.sin(angle)*dist);
+  cloud.lookAt(0, cloud.position.y, 0);
+  scene.add(cloud);
+}
+
+// =============================================================================
+// CITY (low-poly procedural buildings + ground far below)
+// =============================================================================
+const cityGroup = new THREE.Group();
+scene.add(cityGroup);
+
+const buildingPalette = [0x4a4a52, 0x5a5258, 0x6a605c, 0x404048, 0x5a4844, 0x382e36, 0x6c6470, 0x4a3838];
+const litColor = new THREE.Color(0xffd870);
+
+function buildCity() {
+  const range = 200;
+  const step = 22;
+  const proto = new THREE.BoxGeometry(1, 1, 1);
+  for (let x = -range; x <= range; x += step) {
+    for (let z = -range; z <= range; z += step) {
+      // Skip footprint right under our building (visible drop area)
+      const closeToBase = Math.abs(x) < 10 && z > -10 && z < 36;
+      if (closeToBase) continue;
+      // Random street gaps
+      if (Math.random() < 0.18) continue;
+      const w = 7 + Math.random() * 8;
+      const d = 7 + Math.random() * 8;
+      const h = 6 + Math.random() * 38;
+      const m = new THREE.Mesh(
+        proto,
+        new THREE.MeshLambertMaterial({color: buildingPalette[Math.floor(Math.random()*buildingPalette.length)]})
+      );
+      m.position.set(x + (Math.random()-0.5)*5, h/2, z + (Math.random()-0.5)*5);
+      m.scale.set(w, h, d);
+      cityGroup.add(m);
+      // Lit window strip on some
+      if (h > 18 && Math.random() < 0.3) {
+        const wm = new THREE.Mesh(
+          new THREE.BoxGeometry(w*0.32, h*0.45, d*0.32),
+          new THREE.MeshBasicMaterial({color:0xffd870})
+        );
+        wm.position.copy(m.position);
+        wm.position.y = h*0.7;
+        cityGroup.add(wm);
+      }
+    }
+  }
+  // Ground (asphalt-ish) far below
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(1000, 1000, 1, 1),
+    new THREE.MeshLambertMaterial({color:0x1a1c22})
+  );
+  ground.rotation.x = -Math.PI/2;
+  ground.position.y = -0.1;
+  cityGroup.add(ground);
+  // Street grid (lighter strips)
+  for (let i = -8; i <= 8; i++) {
+    const street = new THREE.Mesh(
+      new THREE.PlaneGeometry(800, 4),
+      new THREE.MeshLambertMaterial({color:0x303238})
+    );
+    street.rotation.x = -Math.PI/2;
+    street.position.set(0, 0.01, i * 22);
+    cityGroup.add(street);
+    const street2 = street.clone();
+    street2.rotation.z = Math.PI/2;
+    street2.position.set(i * 22, 0.01, 0);
+    cityGroup.add(street2);
+  }
+}
+buildCity();
+
+// Cars — moving boxes
+const cars = [];
+const carColors = [0xe04030, 0xe8a020, 0x40b0e8, 0xffffff, 0x202028, 0x80c040, 0xd0d0d0, 0xc04080];
+function spawnCar() {
+  const lane = (Math.floor(Math.random()*16) - 8) * 22;
+  const axis = Math.random() < 0.5 ? 'x' : 'z';
+  const dir = Math.random() < 0.5 ? 1 : -1;
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(2.4, 1.0, 4.8),
+    new THREE.MeshLambertMaterial({color: carColors[Math.floor(Math.random()*carColors.length)]})
+  );
+  m.position.y = 0.55;
+  if (axis === 'x') {
+    m.position.set(dir>0 ? -200 : 200, 0.55, lane);
+    m.rotation.y = dir>0 ? Math.PI/2 : -Math.PI/2;
+  } else {
+    m.position.set(lane, 0.55, dir>0 ? -200 : 200);
+  }
+  cityGroup.add(m);
+  cars.push({mesh:m, axis, dir, speed: 4 + Math.random()*6});
+}
+for (let i = 0; i < 14; i++) spawnCar();
+
+// Distant helicopter (silhouette in sky, looping)
+const heli = new THREE.Group();
+const heliBody = new THREE.Mesh(
+  new THREE.BoxGeometry(2, 1.2, 3.2),
+  new THREE.MeshLambertMaterial({color:0x303838})
+);
+heli.add(heliBody);
+const heliRotor = new THREE.Mesh(
+  new THREE.BoxGeometry(0.05, 0.05, 5),
+  new THREE.MeshBasicMaterial({color:0x202020})
+);
+heliRotor.position.y = 0.7;
+heli.add(heliRotor);
+scene.add(heli);
+
+// =============================================================================
+// ROOFTOP (player's building top)
+// =============================================================================
+const rooftop = new THREE.Group();
+scene.add(rooftop);
+
+const roofMat = new THREE.MeshLambertMaterial({color:0x8a8a8c});
+const roofMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(8, 0.6, 8),
+  roofMat
+);
+roofMesh.position.set(0, ROOF_Y - 0.3, 0);
+rooftop.add(roofMesh);
+
+// Building shaft (stretched down to ground so it looks like a real tower)
+const shaftMat = new THREE.MeshLambertMaterial({color:0x4a4a55});
+const shaft = new THREE.Mesh(
+  new THREE.BoxGeometry(7.6, ROOF_Y, 7.6),
+  shaftMat
+);
+shaft.position.set(0, ROOF_Y/2 - 0.2, 0);
+rooftop.add(shaft);
+
+// Window strips on shaft (4 sides)
+for (let side = 0; side < 4; side++) {
+  for (let row = 0; row < 18; row++) {
+    const wstrip = new THREE.Mesh(
+      new THREE.BoxGeometry(5.5, 0.6, 0.05),
+      new THREE.MeshBasicMaterial({color: Math.random() < 0.4 ? 0xffe090 : 0x182030})
+    );
+    wstrip.position.y = 4 + row * 4;
+    if (side === 0) { wstrip.position.z = 3.85; }
+    else if (side === 1) { wstrip.position.z = -3.85; }
+    else if (side === 2) { wstrip.position.x = 3.85; wstrip.rotation.y = Math.PI/2; }
+    else { wstrip.position.x = -3.85; wstrip.rotation.y = Math.PI/2; }
+    rooftop.add(wstrip);
+  }
+}
+
+// Rooftop AC units, vents
+const acGeo = new THREE.BoxGeometry(1.3, 0.7, 0.9);
+const acMat = new THREE.MeshLambertMaterial({color:0x60606a});
+const ac1 = new THREE.Mesh(acGeo, acMat); ac1.position.set(2.8, ROOF_Y + 0.35, -3); rooftop.add(ac1);
+const ac2 = new THREE.Mesh(acGeo, acMat); ac2.position.set(-3, ROOF_Y + 0.35, 2.5); rooftop.add(ac2);
+const vent = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.25, 0.25, 0.6, 12),
+  new THREE.MeshLambertMaterial({color:0x808088})
+);
+vent.position.set(-3.4, ROOF_Y + 0.3, -3.2); rooftop.add(vent);
+
+// Edge guards (NONE on +z side — that's the danger side)
+// add little curb at -x, +x, -z so player feels safer on those edges
+const curbMat = new THREE.MeshLambertMaterial({color:0xa0a0a8});
+const curbX1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.3, 8), curbMat);
+curbX1.position.set(-3.95, ROOF_Y + 0.15, 0); rooftop.add(curbX1);
+const curbX2 = curbX1.clone(); curbX2.position.set(3.95, ROOF_Y + 0.15, 0); rooftop.add(curbX2);
+const curbZ = new THREE.Mesh(new THREE.BoxGeometry(8, 0.3, 0.1), curbMat);
+curbZ.position.set(0, ROOF_Y + 0.15, -3.95); rooftop.add(curbZ);
+
+// =============================================================================
+// THE PLANK
+// =============================================================================
+// Wood texture-ish: stripes via canvas
+function makeWoodTexture() {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#8b6f47'; g.fillRect(0, 0, 256, 64);
+  for (let i = 0; i < 12; i++) {
+    g.fillStyle = `rgba(60,40,20,${0.1 + Math.random()*0.2})`;
+    const y = Math.random() * 64;
+    g.fillRect(0, y, 256, 1 + Math.random()*2);
+  }
+  for (let i = 0; i < 30; i++) {
+    g.fillStyle = `rgba(120,90,60,${0.08 + Math.random()*0.12})`;
+    g.fillRect(Math.random()*256, Math.random()*64, 4 + Math.random()*20, 1 + Math.random()*3);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+const woodTex = makeWoodTexture();
+const plank = new THREE.Mesh(
+  new THREE.BoxGeometry(PLANK_W, PLANK_T, PLANK_LEN),
+  new THREE.MeshLambertMaterial({color:0xb89070, map: woodTex})
+);
+plank.position.set(0, ROOF_Y + PLANK_T/2, PLANK_CENTER_Z);
+scene.add(plank);
+
+// Red end marker
+const plankEnd = new THREE.Mesh(
+  new THREE.BoxGeometry(PLANK_W + 0.02, PLANK_T + 0.01, 0.06),
+  new THREE.MeshBasicMaterial({color:0xff3030})
+);
+plankEnd.position.set(0, ROOF_Y + PLANK_T/2, PLANK_FRONT_Z - 0.03);
+scene.add(plankEnd);
+
+// Plank base reinforcement (small visible support where it meets the roof)
+const plankBase = new THREE.Mesh(
+  new THREE.BoxGeometry(0.6, 0.12, 0.4),
+  new THREE.MeshLambertMaterial({color:0x5c4830})
+);
+plankBase.position.set(0, ROOF_Y + 0.06, PLANK_CENTER_Z - PLANK_LEN/2 + 0.5);
+scene.add(plankBase);
+
+// =============================================================================
+// PIGEON on plank end (cute detail — flies off when you get close)
+// =============================================================================
+const pigeon = new THREE.Group();
+const pBody = new THREE.Mesh(
+  new THREE.SphereGeometry(0.08, 12, 8),
+  new THREE.MeshLambertMaterial({color:0xc8c8d0})
+);
+pBody.scale.set(1, 0.9, 1.4);
+pigeon.add(pBody);
+const pHead = new THREE.Mesh(
+  new THREE.SphereGeometry(0.05, 10, 8),
+  new THREE.MeshLambertMaterial({color:0x484850})
+);
+pHead.position.set(0, 0.06, 0.11);
+pigeon.add(pHead);
+const pBeak = new THREE.Mesh(
+  new THREE.ConeGeometry(0.015, 0.04, 6),
+  new THREE.MeshLambertMaterial({color:0xffa030})
+);
+pBeak.rotation.x = Math.PI/2;
+pBeak.position.set(0, 0.06, 0.16);
+pigeon.add(pBeak);
+pigeon.position.set(0, ROOF_Y + PLANK_T + 0.08, PLANK_FRONT_Z - 0.25);
+scene.add(pigeon);
+let pigeonAlive = true;
+let pigeonFlyT = 0;
+
+// =============================================================================
+// ELEVATOR (player starts inside it at world y=0; box rises with player)
+// =============================================================================
+const elevator = new THREE.Group();
+elevator.position.set(0, 0, ELEV_Z);
+scene.add(elevator);
+elevator.add(cameraRig); // rig is child of elevator until it arrives at top
+
+const elevWoodMat = new THREE.MeshLambertMaterial({color:0x6a4830});
+const elevWallMat = new THREE.MeshLambertMaterial({color:0x303038});
+const elevTrimMat = new THREE.MeshLambertMaterial({color:0x807060});
+
+// Floor
+const elevFloor = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 2.4), elevWoodMat);
+elevFloor.position.y = 0.05;
+elevator.add(elevFloor);
+// Ceiling (with light)
+const elevCeil = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 2.4), elevWallMat);
+elevCeil.position.y = 2.55;
+elevator.add(elevCeil);
+const elevLight = new THREE.Mesh(
+  new THREE.BoxGeometry(0.7, 0.04, 0.7),
+  new THREE.MeshBasicMaterial({color:0xfff8e0})
+);
+elevLight.position.y = 2.5;
+elevator.add(elevLight);
+const elevPointLight = new THREE.PointLight(0xfff0c0, 0.6, 5);
+elevPointLight.position.y = 2.4;
+elevator.add(elevPointLight);
+
+// Walls (back, left, right)
+const wH = 2.5;
+const wallBack = new THREE.Mesh(new THREE.BoxGeometry(2.4, wH, 0.1), elevWallMat);
+wallBack.position.set(0, wH/2 + 0.05, -1.2);
+elevator.add(wallBack);
+const wallL = new THREE.Mesh(new THREE.BoxGeometry(0.1, wH, 2.4), elevWallMat);
+wallL.position.set(-1.2, wH/2 + 0.05, 0);
+elevator.add(wallL);
+const wallR = new THREE.Mesh(new THREE.BoxGeometry(0.1, wH, 2.4), elevWallMat);
+wallR.position.set(1.2, wH/2 + 0.05, 0);
+elevator.add(wallR);
+
+// Door frame (around the +z opening)
+const frameTop = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.3, 0.12), elevTrimMat);
+frameTop.position.set(0, wH + 0.05 - 0.15, 1.2);
+elevator.add(frameTop);
+
+// Doors (slide outward in x when opening)
+const doorL = new THREE.Mesh(new THREE.BoxGeometry(1.15, wH - 0.3, 0.08), elevTrimMat);
+doorL.position.set(-0.6, (wH - 0.3)/2 + 0.05, 1.2);
+elevator.add(doorL);
+const doorR = new THREE.Mesh(new THREE.BoxGeometry(1.15, wH - 0.3, 0.08), elevTrimMat);
+doorR.position.set(0.6, (wH - 0.3)/2 + 0.05, 1.2);
+elevator.add(doorR);
+
+function setDoorOpen(t) {
+  doorL.position.x = -0.6 - t * 1.05;
+  doorR.position.x = 0.6 + t * 1.05;
+}
+setDoorOpen(0);
+
+// Side panel + button + display
+const panel = new THREE.Mesh(
+  new THREE.BoxGeometry(0.05, 0.6, 0.4),
+  new THREE.MeshLambertMaterial({color:0x1a1a20})
+);
+panel.position.set(-1.18, 1.3, -0.4);
+elevator.add(panel);
+
+const buttonMesh = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.07, 0.07, 0.05, 18),
+  new THREE.MeshBasicMaterial({color:0xff3020})
+);
+buttonMesh.rotation.z = Math.PI/2;
+buttonMesh.position.set(-1.16, 1.18, -0.4);
+elevator.add(buttonMesh);
+// Glow ring around button
+const buttonRing = new THREE.Mesh(
+  new THREE.TorusGeometry(0.1, 0.012, 8, 24),
+  new THREE.MeshBasicMaterial({color:0xff8050})
+);
+buttonRing.rotation.y = Math.PI/2;
+buttonRing.position.set(-1.155, 1.18, -0.4);
+elevator.add(buttonRing);
+
+// Floor display (canvas texture)
+const dispCanvas = document.createElement('canvas');
+dispCanvas.width = 256; dispCanvas.height = 128;
+const dctx = dispCanvas.getContext('2d');
+function drawDisplay(text, sub) {
+  dctx.fillStyle = '#0a0a08';
+  dctx.fillRect(0, 0, 256, 128);
+  dctx.fillStyle = '#ff5030';
+  dctx.shadowColor = '#ff5030';
+  dctx.shadowBlur = 12;
+  dctx.font = 'bold 84px monospace';
+  dctx.textAlign = 'center'; dctx.textBaseline = 'middle';
+  dctx.fillText(text, 128, 60);
+  dctx.shadowBlur = 0;
+  if (sub) {
+    dctx.fillStyle = '#aa3020';
+    dctx.font = 'bold 16px monospace';
+    dctx.fillText(sub, 128, 110);
+  }
+  dispTex.needsUpdate = true;
+}
+const dispTex = new THREE.CanvasTexture(dispCanvas);
+const dispMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.36, 0.18),
+  new THREE.MeshBasicMaterial({map: dispTex})
+);
+dispMesh.position.set(-1.175, 1.55, -0.4);
+dispMesh.rotation.y = Math.PI/2;
+elevator.add(dispMesh);
+drawDisplay('▶', 'PRESS');
+
+// Sign above button
+function makeTextSprite(text) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(0,0,0,0)';
+  g.fillRect(0, 0, 256, 64);
+  g.fillStyle = '#ffffff';
+  g.font = 'bold 32px sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, 128, 32);
+  const tex = new THREE.CanvasTexture(c);
+  return new THREE.MeshBasicMaterial({map: tex, transparent: true});
+}
+const buttonLabel = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.4, 0.1),
+  makeTextSprite('80F'));
+buttonLabel.position.set(-1.175, 1.32, -0.4);
+buttonLabel.rotation.y = Math.PI/2;
+elevator.add(buttonLabel);
+
+// =============================================================================
+// CONTROLLERS
+// =============================================================================
+const controller1 = renderer.xr.getController(0);
+const controller2 = renderer.xr.getController(1);
+cameraRig.add(controller1);
+cameraRig.add(controller2);
+
+function makeCtrlVisual(color) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.045, 0.05, 0.13),
+    new THREE.MeshLambertMaterial({color})
+  );
+  g.add(body);
+  const grip = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.015, 0.015, 0.06, 8),
+    new THREE.MeshLambertMaterial({color:0x202020})
+  );
+  grip.rotation.x = Math.PI/2.5;
+  grip.position.set(0, -0.04, 0.02);
+  g.add(grip);
+  return g;
+}
+controller1.add(makeCtrlVisual(0x40c0ff));
+controller2.add(makeCtrlVisual(0xff4080));
+
+// Aim ray on right controller
+const rayGeo = new THREE.BufferGeometry().setFromPoints([
+  new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -2)
+]);
+const rayLine = new THREE.Line(rayGeo, new THREE.LineBasicMaterial({color:0xff80a0, transparent:true, opacity:0.6}));
+controller2.add(rayLine);
+
+// =============================================================================
+// AUDIO (procedural)
+// =============================================================================
+let audioCtx = null;
+let masterGain = null;
+function initAudio() {
+  if (audioCtx) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return;
+  }
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.55;
+  masterGain.connect(audioCtx.destination);
+}
+
+function tone(freq, dur, type='sine', vol=0.2, attack=0.005) {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(vol, t0 + attack);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+  osc.connect(g).connect(masterGain);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.05);
+}
+
+function playClick() { tone(1400, 0.06, 'square', 0.18); tone(900, 0.04, 'square', 0.1); }
+function playDing() {
+  tone(880, 0.7, 'sine', 0.3, 0.01);
+  setTimeout(() => tone(1320, 0.8, 'sine', 0.25, 0.01), 130);
+}
+
+// Wind: filtered noise loop
+let windNoise=null, windGain=null, windFilt=null;
+function startWind() {
+  if (!audioCtx || windNoise) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*3, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < d.length; i++) {
+    const w = Math.random()*2 - 1;
+    last = last*0.95 + w*0.05;
+    d[i] = last * 5;
+  }
+  windNoise = audioCtx.createBufferSource();
+  windNoise.buffer = buf;
+  windNoise.loop = true;
+  windFilt = audioCtx.createBiquadFilter();
+  windFilt.type = 'lowpass';
+  windFilt.frequency.value = 500;
+  windGain = audioCtx.createGain();
+  windGain.gain.value = 0;
+  windNoise.connect(windFilt).connect(windGain).connect(masterGain);
+  windNoise.start();
+}
+function setWind(target) {
+  if (!windGain) return;
+  const t = audioCtx.currentTime;
+  windGain.gain.cancelScheduledValues(t);
+  windGain.gain.setValueAtTime(windGain.gain.value, t);
+  windGain.gain.linearRampToValueAtTime(target, t + 0.4);
+}
+
+// Elevator hum
+let elevHum=null, elevHumGain=null;
+function startElevHum() {
+  if (!audioCtx) return;
+  if (elevHum) stopElevHum();
+  elevHum = audioCtx.createOscillator();
+  elevHum.type = 'sawtooth';
+  elevHum.frequency.value = 65;
+  elevHumGain = audioCtx.createGain();
+  elevHumGain.gain.value = 0;
+  const filt = audioCtx.createBiquadFilter();
+  filt.type = 'lowpass';
+  filt.frequency.value = 220;
+  elevHum.connect(filt).connect(elevHumGain).connect(masterGain);
+  elevHum.start();
+  elevHumGain.gain.linearRampToValueAtTime(0.14, audioCtx.currentTime + 0.4);
+}
+function stopElevHum() {
+  if (!elevHum) return;
+  const eh = elevHum, ehg = elevHumGain;
+  ehg.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.4);
+  setTimeout(() => { try { eh.stop(); } catch(e){} }, 500);
+  elevHum = null; elevHumGain = null;
+}
+
+function playWoodCreak() {
+  if (!audioCtx) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*0.5, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * Math.exp(-i/d.length * 1.5);
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  src.playbackRate.value = 0.35 + Math.random()*0.4;
+  const filt = audioCtx.createBiquadFilter();
+  filt.type = 'bandpass';
+  filt.frequency.value = 220 + Math.random()*200;
+  filt.Q.value = 4;
+  const g = audioCtx.createGain();
+  g.gain.value = 0.6;
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+  src.connect(filt).connect(g).connect(masterGain);
+  src.start();
+}
+
+function playSplat() {
+  if (!audioCtx) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*0.5, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * Math.exp(-i/d.length * 6);
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const filt = audioCtx.createBiquadFilter();
+  filt.type = 'lowpass';
+  filt.frequency.value = 90;
+  const g = audioCtx.createGain();
+  g.gain.value = 1.0;
+  src.connect(filt).connect(g).connect(masterGain);
+  src.start();
+  // low boom
+  tone(45, 0.6, 'sine', 0.4, 0.005);
+}
+
+// Pigeon flap
+function playFlap() {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  for (let i = 0; i < 6; i++) {
+    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*0.06, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let j = 0; j < d.length; j++) d[j] = (Math.random()*2-1) * Math.exp(-j/d.length * 4);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const g = audioCtx.createGain();
+    g.gain.value = 0.25;
+    src.connect(g).connect(masterGain);
+    src.start(t0 + i*0.12);
+  }
+}
+
+// =============================================================================
+// HAPTICS
+// =============================================================================
+function pulseAll(intensity, duration) {
+  const sess = renderer.xr.getSession();
+  if (!sess) return;
+  for (const src of sess.inputSources) {
+    if (src.gamepad && src.gamepad.hapticActuators && src.gamepad.hapticActuators[0]) {
+      try { src.gamepad.hapticActuators[0].pulse(intensity, duration); } catch(e){}
+    }
+  }
+}
+
+// =============================================================================
+// GAME STATE MACHINE
+// =============================================================================
+let state = 'elevator_idle';
+let stateT = 0;
+let elevY = 0;
+let currentFloor = 1;
+let fallVel = 0;
+let lastCreakT = 0;
+
+const fadeEl = document.getElementById('fade');
+const instrEl = document.getElementById('instr');
+function setInstr(text) {
+  if (text) { instrEl.textContent = text; instrEl.classList.add('show'); }
+  else { instrEl.classList.remove('show'); }
+}
+
+// Detach rig from elevator when door opens — preserve world position.
+function detachRigToWorld() {
+  if (cameraRig.parent === scene) return;
+  const wp = new THREE.Vector3();
+  const wq = new THREE.Quaternion();
+  cameraRig.getWorldPosition(wp);
+  cameraRig.getWorldQuaternion(wq);
+  scene.add(cameraRig);
+  cameraRig.position.copy(wp);
+  cameraRig.quaternion.copy(wq);
+}
+
+function reattachRigToElevator() {
+  if (cameraRig.parent === elevator) return;
+  elevator.add(cameraRig);
+  cameraRig.position.set(0, 0, 0);
+  cameraRig.rotation.set(0, 0, 0);
+  cameraRig.quaternion.identity();
+}
+
+// =============================================================================
+// BUTTON RAYCAST
+// =============================================================================
+const tmpMatrix = new THREE.Matrix4();
+const raycaster = new THREE.Raycaster();
+function buttonHit(controller) {
+  if (state !== 'elevator_idle') return false;
+  tmpMatrix.identity().extractRotation(controller.matrixWorld);
+  raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+  raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tmpMatrix);
+  // Larger virtual button hitbox: a sphere around button world position
+  const bw = new THREE.Vector3();
+  buttonMesh.getWorldPosition(bw);
+  // closest point on ray to button
+  const ro = raycaster.ray.origin;
+  const rd = raycaster.ray.direction;
+  const v = bw.clone().sub(ro);
+  const t = v.dot(rd);
+  if (t < 0 || t > 4) return false;
+  const closest = ro.clone().add(rd.clone().multiplyScalar(t));
+  const dist = closest.distanceTo(bw);
+  return dist < 0.18;
+}
+
+function pressButton() {
+  if (state !== 'elevator_idle') return;
+  initAudio();
+  startWind();
+  playClick();
+  pulseAll(0.6, 60);
+  state = 'rising';
+  stateT = 0;
+  startElevHum();
+  setInstr(null);
+  buttonRing.material.color.setHex(0x808080);
+  buttonMesh.material.color.setHex(0x802018);
+}
+
+controller1.addEventListener('selectstart', () => { if (buttonHit(controller1)) pressButton(); });
+controller2.addEventListener('selectstart', () => { if (buttonHit(controller2)) pressButton(); });
+
+// =============================================================================
+// LOCOMOTION (VR thumbstick)
+// =============================================================================
+let snapCD = 0;
+function vrLocomotion(dt) {
+  if (state !== 'top') return;
+  const sess = renderer.xr.getSession();
+  if (!sess) return;
+  for (const src of sess.inputSources) {
+    if (!src.gamepad) continue;
+    const ax = src.gamepad.axes;
+    const sx = ax[2] !== undefined ? ax[2] : (ax[0] || 0);
+    const sy = ax[3] !== undefined ? ax[3] : (ax[1] || 0);
+    if (src.handedness === 'left') {
+      if (Math.hypot(sx, sy) > 0.18) {
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        dir.y = 0; dir.normalize();
+        const right = new THREE.Vector3(dir.z, 0, -dir.x);
+        const speed = 1.4;
+        cameraRig.position.x += (dir.x * (-sy) + right.x * sx) * speed * dt;
+        cameraRig.position.z += (dir.z * (-sy) + right.z * sx) * speed * dt;
+      }
+    } else if (src.handedness === 'right') {
+      snapCD -= dt;
+      if (Math.abs(sx) > 0.7 && snapCD <= 0) {
+        cameraRig.rotation.y -= Math.sign(sx) * Math.PI/6;
+        snapCD = 0.32;
+      }
+    }
+  }
+}
+
+// =============================================================================
+// FALL DETECTION
+// =============================================================================
+function checkFall() {
+  if (state !== 'top' || cameraRig.parent !== scene) return;
+  const x = cameraRig.position.x;
+  const z = cameraRig.position.z;
+  const onRoof = Math.abs(x) < ROOF_HALF && Math.abs(z) < ROOF_HALF;
+  const onPlank = Math.abs(x) < PLANK_W/2 + 0.18 && z > PLANK_BACK_Z && z < PLANK_FRONT_Z;
+  if (!onRoof && !onPlank) {
+    state = 'falling';
+    stateT = 0;
+    fallVel = 0;
+    pulseAll(0.9, 250);
+    // scream-ish whoosh: rising-pitch noise
+    if (audioCtx) {
+      const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*2, audioCtx.sampleRate);
+      const d = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < d.length; i++) {
+        const w = Math.random()*2-1;
+        last = last*0.93 + w*0.07;
+        d[i] = last * 5;
+      }
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      const filt = audioCtx.createBiquadFilter();
+      filt.type = 'bandpass';
+      filt.frequency.setValueAtTime(400, audioCtx.currentTime);
+      filt.frequency.linearRampToValueAtTime(1800, audioCtx.currentTime + 1.6);
+      filt.Q.value = 4;
+      const g = audioCtx.createGain();
+      g.gain.value = 0.5;
+      src.connect(filt).connect(g).connect(masterGain);
+      src.start();
+      window.__fallNoise = src;
+      window.__fallGain = g;
+    }
+  }
+}
+
+function updateFall(dt) {
+  fallVel += 9.8 * dt * 1.6;
+  cameraRig.position.y -= fallVel * dt;
+  setWind(0.95);
+  if (cameraRig.position.y <= 1.4) {
+    cameraRig.position.y = 1.4;
+    state = 'splat';
+    stateT = 0;
+    playSplat();
+    pulseAll(1.0, 350);
+    fadeEl.classList.add('show');
+    if (window.__fallNoise) try { window.__fallNoise.stop(); } catch(e){}
+  }
+}
+
+function respawn() {
+  fadeEl.classList.remove('show');
+  reattachRigToElevator();
+  elevator.position.set(0, 0, ELEV_Z);
+  elevY = 0;
+  currentFloor = 1;
+  drawDisplay('▶', 'PRESS');
+  setDoorOpen(0);
+  state = 'elevator_idle';
+  stateT = 0;
+  setWind(0);
+  buttonRing.material.color.setHex(0xff8050);
+  buttonMesh.material.color.setHex(0xff3020);
+  setInstr('Aperte o botão pra subir');
+  // pigeon comes back
+  pigeonAlive = true;
+  pigeon.visible = true;
+  pigeon.position.set(0, ROOF_Y + PLANK_T + 0.08, PLANK_FRONT_Z - 0.25);
+  pigeonFlyT = 0;
+}
+
+// =============================================================================
+// DESKTOP FALLBACK CONTROLS
+// =============================================================================
+const keys = {};
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'KeyE' || e.code === 'Space') {
+    if (state === 'elevator_idle') pressButton();
+  }
+  if (e.code === 'KeyR' && (state === 'splat' || state === 'falling')) {
+    if (state === 'falling') { state = 'splat'; stateT = 99; }
+    respawn();
+  }
+});
+addEventListener('keyup', e => keys[e.code] = false);
+
+let mouseLocked = false;
+const startEl = document.getElementById('start');
+function dismissStart() {
+  initAudio();
+  startEl.style.display = 'none';
+  setInstr('Aperte o botão pra subir (E)');
+  if (renderer.domElement.requestPointerLock && !renderer.xr.isPresenting) {
+    try { renderer.domElement.requestPointerLock(); } catch(e){}
+  }
+}
+startEl.addEventListener('click', dismissStart);
+startEl.addEventListener('touchstart', dismissStart, {passive:true});
+
+document.addEventListener('pointerlockchange', () => {
+  mouseLocked = document.pointerLockElement === renderer.domElement;
+});
+renderer.domElement.addEventListener('click', () => {
+  if (!renderer.xr.isPresenting && !mouseLocked) {
+    try { renderer.domElement.requestPointerLock(); } catch(e){}
+  }
+});
+
+let yaw = 0, pitch = 0;
+addEventListener('mousemove', e => {
+  if (!mouseLocked) return;
+  yaw -= e.movementX * 0.0025;
+  pitch -= e.movementY * 0.0025;
+  pitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, pitch));
+  cameraRig.rotation.y = yaw;
+  camera.rotation.x = pitch;
+});
+
+function desktopMove(dt) {
+  if (renderer.xr.isPresenting) return;
+  if (state === 'rising' || state === 'splat' || state === 'falling') return;
+  let mx=0, mz=0;
+  if (keys['KeyW']) mz -= 1;
+  if (keys['KeyS']) mz += 1;
+  if (keys['KeyA']) mx -= 1;
+  if (keys['KeyD']) mx += 1;
+  if (mx === 0 && mz === 0) return;
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  dir.y = 0; dir.normalize();
+  const right = new THREE.Vector3(dir.z, 0, -dir.x);
+  const speed = 1.8;
+  cameraRig.position.x += (dir.x * (-mz) + right.x * mx) * speed * dt;
+  cameraRig.position.z += (dir.z * (-mz) + right.z * mx) * speed * dt;
+}
+
+// =============================================================================
+// VR session lifecycle
+// =============================================================================
+renderer.xr.addEventListener('sessionstart', () => {
+  initAudio();
+  startEl.style.display = 'none';
+  setInstr('Aperte o botão vermelho pra subir');
+});
+renderer.xr.addEventListener('sessionend', () => {
+  // back to desktop view
+});
+
+// =============================================================================
+// MAIN LOOP
+// =============================================================================
+const clock = new THREE.Clock();
+let heliAngle = 0;
+
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  stateT += dt;
+
+  // Cars loop
+  for (const c of cars) {
+    if (c.axis === 'x') {
+      c.mesh.position.x += c.dir * c.speed * dt;
+      if (Math.abs(c.mesh.position.x) > 240) c.mesh.position.x = -c.mesh.position.x;
+    } else {
+      c.mesh.position.z += c.dir * c.speed * dt;
+      if (Math.abs(c.mesh.position.z) > 240) c.mesh.position.z = -c.mesh.position.z;
+    }
+  }
+
+  // Helicopter circling
+  heliAngle += dt * 0.08;
+  heli.position.set(Math.cos(heliAngle)*180, 110, Math.sin(heliAngle)*180);
+  heli.rotation.y = -heliAngle + Math.PI/2;
+  heliRotor.rotation.y += dt * 30;
+
+  // Pigeon idle bob + flee when player approaches
+  if (pigeonAlive) {
+    pigeon.position.y = ROOF_Y + PLANK_T + 0.08 + Math.sin(stateT*4)*0.005;
+    pigeon.rotation.y = Math.sin(stateT*0.7) * 0.4;
+    if (cameraRig.parent === scene) {
+      const dx = cameraRig.position.x - pigeon.position.x;
+      const dz = cameraRig.position.z - pigeon.position.z;
+      if (Math.hypot(dx, dz) < 1.0) {
+        pigeonAlive = false;
+        pigeonFlyT = 0;
+        playFlap();
+      }
+    }
+  } else {
+    pigeonFlyT += dt;
+    pigeon.position.y += dt * 4;
+    pigeon.position.z += dt * 2;
+    pigeon.rotation.x = -0.4;
+    if (pigeonFlyT > 4) pigeon.visible = false;
+  }
+
+  // State machine
+  if (state === 'elevator_idle') {
+    // Pulsing button glow
+    const pulse = 0.5 + 0.5 * Math.sin(stateT * 4);
+    buttonRing.material.color.setRGB(1, 0.4 + pulse*0.3, 0.2);
+  } else if (state === 'rising') {
+    const totalRise = 7;
+    const t = Math.min(stateT / totalRise, 1);
+    // ease in/out
+    const eased = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2;
+    elevY = ROOF_Y * eased;
+    elevator.position.y = elevY;
+    const f = 1 + Math.floor(eased * 79);
+    if (f !== currentFloor) {
+      currentFloor = f;
+      drawDisplay(String(f), f === 80 ? 'TOP' : 'FLOOR');
+    }
+    // subtle shake
+    elevator.position.x = Math.sin(stateT * 28) * 0.012;
+    if (t >= 1) {
+      elevator.position.x = 0;
+      stopElevHum();
+      playDing();
+      state = 'top';
+      stateT = 0;
+      setInstr('Saia. Caminhe pela tábua.');
+    }
+  } else if (state === 'top') {
+    // Door open over 1.6s
+    const doorT = Math.min(stateT / 1.6, 1);
+    setDoorOpen(doorT);
+    if (doorT >= 1 && cameraRig.parent === elevator) {
+      detachRigToWorld();
+      setWind(0.4);
+    }
+    if (cameraRig.parent === scene) {
+      // wind louder near plank front
+      const z = cameraRig.position.z;
+      const distFromBack = z - PLANK_BACK_Z;
+      const target = 0.35 + Math.min(0.55, Math.max(0, distFromBack) / 4);
+      if (windGain) {
+        const t = audioCtx.currentTime;
+        windGain.gain.setValueAtTime(windGain.gain.value, t);
+        windGain.gain.linearRampToValueAtTime(target, t + 0.25);
+      }
+      // creak when on plank
+      const onPlank = Math.abs(cameraRig.position.x) < PLANK_W/2 + 0.18 &&
+                      cameraRig.position.z > PLANK_BACK_Z &&
+                      cameraRig.position.z < PLANK_FRONT_Z;
+      if (onPlank && performance.now() - lastCreakT > 1000 + Math.random()*1500) {
+        playWoodCreak();
+        pulseAll(0.35, 50);
+        lastCreakT = performance.now();
+      }
+    }
+    checkFall();
+  } else if (state === 'falling') {
+    updateFall(dt);
+  } else if (state === 'splat') {
+    if (stateT > 2.6) respawn();
+  }
+
+  vrLocomotion(dt);
+  desktopMove(dt);
+
+  renderer.render(scene, camera);
+});
+
+// HUD debug
+const hudEl = document.getElementById('hud');
+setInterval(() => {
+  if (!hudEl) return;
+  const p = cameraRig.position;
+  hudEl.textContent = `${state} · pos(${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)}) · F${currentFloor}`;
+}, 250);
+</script>
+</body>
+</html>
