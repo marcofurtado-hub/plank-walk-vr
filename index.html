@@ -533,6 +533,42 @@ const handleR = handleL.clone(); handleR.position.x = 0.27; wheelchair.add(handl
 const handleBar = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.04, 0.04), chairMat);
 handleBar.position.set(0, 1.18, -0.32); wheelchair.add(handleBar);
 
+// Pernas (calça jeans) — coxas horizontais no assento, joelhos pra frente, canelas verticais
+const jeanMat = new THREE.MeshLambertMaterial({color:0x3a5fa8});
+const jeanDarkMat = new THREE.MeshLambertMaterial({color:0x2a4880});
+// Coxas
+const thighL = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.065, 0.40, 10), jeanMat);
+thighL.rotation.x = Math.PI/2;
+thighL.position.set(-0.13, 0.55, 0.10);
+wheelchair.add(thighL);
+const thighR = thighL.clone(); thighR.position.x = 0.13; wheelchair.add(thighR);
+// Joelhos (esferas pra dar volume)
+const kneeL = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), jeanDarkMat);
+kneeL.position.set(-0.13, 0.50, 0.30);
+wheelchair.add(kneeL);
+const kneeR = kneeL.clone(); kneeR.position.x = 0.13; wheelchair.add(kneeR);
+// Canelas (verticais, descendo do joelho até o sapato)
+const shinL = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.052, 0.42, 10), jeanMat);
+shinL.position.set(-0.13, 0.28, 0.32);
+wheelchair.add(shinL);
+const shinR = shinL.clone(); shinR.position.x = 0.13; wheelchair.add(shinR);
+// Bainha mais escura (final da calça)
+const cuffL = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.058, 0.04, 10), jeanDarkMat);
+cuffL.position.set(-0.13, 0.10, 0.36);
+wheelchair.add(cuffL);
+const cuffR = cuffL.clone(); cuffR.position.x = 0.13; wheelchair.add(cuffR);
+// Sapatos (botas marrom/preto)
+const shoeMat = new THREE.MeshLambertMaterial({color:0x1a1008});
+const shoeL = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.07, 0.22), shoeMat);
+shoeL.position.set(-0.13, 0.06, 0.40);
+wheelchair.add(shoeL);
+const shoeR = shoeL.clone(); shoeR.position.x = 0.13; wheelchair.add(shoeR);
+// Sola dos sapatos
+const soleL = new THREE.Mesh(new THREE.BoxGeometry(0.115, 0.018, 0.225), new THREE.MeshLambertMaterial({color:0x0a0604}));
+soleL.position.set(-0.13, 0.02, 0.40);
+wheelchair.add(soleL);
+const soleR = soleL.clone(); soleR.position.x = 0.13; wheelchair.add(soleR);
+
 // =============================================================================
 // CHICKENS
 // =============================================================================
