@@ -2065,6 +2065,71 @@ addEventListener('mousemove', e => {
   camera.rotation.x = pitch;
 });
 
+// =============================================================================
+// MOBILE TOUCH CONTROLS — arrastar pra mirar, tap pra atirar, hold pra contínuo
+// =============================================================================
+const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+let touchActive = false;
+let touchStartTime = 0;
+let touchMoveDist = 0;
+let lastTouchX = 0, lastTouchY = 0;
+
+function handleTouchStart(e) {
+  if (renderer.xr.isPresenting) return;
+  e.preventDefault();
+  if (e.touches.length === 0) return;
+  const t = e.touches[0];
+
+  // Game state transitions
+  if (state === 'idle') { initAudio(); startWave(0); return; }
+  if (state === 'wave_complete' && stateT > 0.4 && currentWave + 1 < WAVES.length) { startWave(currentWave + 1); return; }
+  if ((state === 'game_over' || state === 'victory') && stateT > 1) { resetGame(); return; }
+  if (state !== 'playing' && state !== 'wave_intro') return;
+
+  touchActive = true;
+  lastTouchX = t.clientX; lastTouchY = t.clientY;
+  touchStartTime = performance.now();
+  touchMoveDist = 0;
+  // Laser fires immediately on touch start (hold to keep firing)
+  if (activeWeapon === 'laser') startLaserBeam();
+}
+
+function handleTouchMove(e) {
+  if (renderer.xr.isPresenting) return;
+  e.preventDefault();
+  if (!touchActive || e.touches.length === 0) return;
+  const t = e.touches[0];
+  const dx = t.clientX - lastTouchX;
+  const dy = t.clientY - lastTouchY;
+  yaw -= dx * 0.006;
+  pitch -= dy * 0.006;
+  pitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, pitch));
+  cameraRig.rotation.y = yaw;
+  camera.rotation.x = pitch;
+  lastTouchX = t.clientX; lastTouchY = t.clientY;
+  touchMoveDist += Math.hypot(dx, dy);
+}
+
+function handleTouchEnd(e) {
+  if (renderer.xr.isPresenting) return;
+  e.preventDefault();
+  if (!touchActive) return;
+  touchActive = false;
+  const elapsed = performance.now() - touchStartTime;
+  const wasTap = elapsed < 220 && touchMoveDist < 14;
+  if (wasTap && (state === 'playing' || state === 'wave_intro')) {
+    if (activeWeapon !== 'laser' && weaponCD <= 0) desktopShoot();
+  }
+  if (activeWeapon === 'laser') stopLaserBeam();
+}
+
+if (isTouch) {
+  renderer.domElement.addEventListener('touchstart', handleTouchStart, { passive: false });
+  renderer.domElement.addEventListener('touchmove', handleTouchMove, { passive: false });
+  renderer.domElement.addEventListener('touchend', handleTouchEnd, { passive: false });
+  renderer.domElement.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+}
+
 renderer.xr.addEventListener('sessionstart', () => {
   initAudio();
   startEl.style.display = 'none';
@@ -2276,7 +2341,7 @@ renderer.setAnimationLoop(() => {
     elasticR.visible = false;
     ctrlVis1.visible = false; ctrlVis2.visible = false;
     // Gatling continuous fire on desktop hold
-    if (activeWeapon === 'gatling' && mouseDown && weaponCD <= 0) {
+    if (activeWeapon === 'gatling' && (mouseDown || touchActive) && weaponCD <= 0) {
       fireGatlingBurst();
     }
   } else {
