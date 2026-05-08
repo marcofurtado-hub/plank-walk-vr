@@ -1030,15 +1030,24 @@ pouchMesh.visible = false; scene.add(pouchMesh);
 const pebbleReadyMesh = new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 8), new THREE.MeshLambertMaterial({color:0x404048}));
 pebbleReadyMesh.visible = false; scene.add(pebbleReadyMesh);
 
-const elasticMat = new THREE.LineBasicMaterial({color:0x301812});
-const elasticGeoL = new THREE.BufferGeometry();
-elasticGeoL.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0,0,0,0], 3));
-const elasticL = new THREE.Line(elasticGeoL, elasticMat);
+// Elásticos como cilindros finos (Line não funciona com linewidth>1 na maioria dos browsers)
+const elasticMat = new THREE.MeshLambertMaterial({color:0x4a2418});
+const elasticL = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 1, 6), elasticMat);
 scene.add(elasticL);
-const elasticGeoR = new THREE.BufferGeometry();
-elasticGeoR.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0,0,0,0], 3));
-const elasticR = new THREE.Line(elasticGeoR, elasticMat);
+const elasticR = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 1, 6), elasticMat);
 scene.add(elasticR);
+function updateElasticStrand(mesh, fromW, toW) {
+  const mid = fromW.clone().add(toW).multiplyScalar(0.5);
+  mesh.position.copy(mid);
+  const dir = toW.clone().sub(fromW);
+  const len = dir.length();
+  if (len < 0.001) return;
+  mesh.scale.set(1, len, 1);
+  // Cilindro padrão tem eixo Y; rotaciona pra alinhar com dir
+  const q = new THREE.Quaternion();
+  q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.divideScalar(len));
+  mesh.quaternion.copy(q);
+}
 
 let pouchGrabbed = false;
 const POUCH_REST_BY_WEAPON = {
@@ -2504,10 +2513,8 @@ renderer.setAnimationLoop(() => {
       const tipRObj = activeWeapon === 'crossbow' ? cbTipR : slTipR;
       const tipLW = new THREE.Vector3(); tipLObj.getWorldPosition(tipLW);
       const tipRW = new THREE.Vector3(); tipRObj.getWorldPosition(tipRW);
-      elasticL.geometry.setFromPoints([tipLW, pp]);
-      elasticR.geometry.setFromPoints([tipRW, pp]);
-      elasticL.geometry.attributes.position.needsUpdate = true;
-      elasticR.geometry.attributes.position.needsUpdate = true;
+      updateElasticStrand(elasticL, tipLW, pp);
+      updateElasticStrand(elasticR, tipRW, pp);
     } else {
       pouchMesh.visible = false;
       pebbleReadyMesh.visible = false;
