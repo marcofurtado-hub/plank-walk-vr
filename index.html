@@ -2303,27 +2303,21 @@ renderer.setAnimationLoop(() => {
     else if (activeWeapon === 'gatling') fireGatlingBurst();
   }
   // Cadeira segue a rotação Y da cabeça do player (em VR)
+  // Convenções:
+  //   Câmera com world rotY=θ olha em (-sin θ, 0, -cos θ)
+  //   Cadeira (frente em +Z local) com world rotY=φ aponta em (sin φ, 0, cos φ)
+  //   Pra cadeira apontar mesma direção da câmera: φ = θ + π (ou θ - π)
   if (renderer.xr.isPresenting) {
     const cw = new THREE.Vector3();
     camera.getWorldDirection(cw);
     cw.y = 0;
     if (cw.lengthSq() > 0.001) {
       cw.normalize();
-      // Camera local rotation Y dentro do rig: ângulo entre camera fwd e default fwd (-Z local do rig)
-      // Default forward do rig é -Z local; camera fwd é direção que olha
-      // Pra cadeira "olhar" pra mesma direção que a câmera, eu computo o yaw local da câmera
-      // (câmera é child do rig, então camera.rotation reflete o yaw local; mas o headset é setado externamente)
-      // Solução: pegar camera world Y e subtrair cameraRig Y
-      const camWorldYaw = Math.atan2(cw.x, cw.z); // 0 = olhando +Z
-      // wheelchair é child do rig; queremos wheelchair world Y rotation = camera world Y rotation
-      // wheelchair world Y = cameraRig.rotation.y + wheelchair.rotation.y
-      // → wheelchair.rotation.y = camWorldYaw_target - cameraRig.rotation.y
-      // mas precisa converter o yaw "lookAngle" pro rotation Y equivalente:
-      // camera looking at +Z significa world Y rotation = π. lookAngle = 0.
-      // camera looking at -Z = world Y rotation 0. lookAngle = π.
-      // Então camera world rotation Y = π - lookAngle (mod 2π).
-      const camWorldRotY = Math.PI - camWorldYaw;
-      wheelchair.rotation.y = camWorldRotY - cameraRig.rotation.y;
+      // Recupera camera world rot Y:  θ = atan2(-cw.x, -cw.z)
+      const camWorldRotY = Math.atan2(-cw.x, -cw.z);
+      // Chair world rotY desejado = camera world rotY - π
+      // Chair local = world - cameraRig.rotation.y
+      wheelchair.rotation.y = camWorldRotY - Math.PI - cameraRig.rotation.y;
     }
   } else {
     wheelchair.rotation.y = 0;
