@@ -821,19 +821,33 @@ const cbTipR = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), new THREE.M
 crossbow.visible = false;
 scene.add(crossbow);
 
-// ----- SHOTGUN -----
+// ----- SHOTGUN (cano duplo) -----
 const shotgun = new THREE.Group();
 {
   const sGrip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.13, 0.06), new THREE.MeshLambertMaterial({color:0x6a4830}));
   sGrip.position.set(0, -0.06, 0.05); sGrip.rotation.x = 0.3; shotgun.add(sGrip);
-  const sStock = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.18), new THREE.MeshLambertMaterial({color:0x6a4830}));
-  sStock.position.set(0, -0.02, 0.18); shotgun.add(sStock);
-  const sReceiver = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.2), new THREE.MeshLambertMaterial({color:0x303038}));
-  sReceiver.position.set(0, 0.01, 0.04); shotgun.add(sReceiver);
-  const sBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.32, 10), new THREE.MeshLambertMaterial({color:0x202028}));
-  sBarrel.rotation.x = Math.PI/2; sBarrel.position.set(0, 0.015, -0.18); shotgun.add(sBarrel);
-  const sPump = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.04, 0.10), new THREE.MeshLambertMaterial({color:0x4a3020}));
-  sPump.position.set(0, -0.02, -0.10); shotgun.add(sPump);
+  const sStock = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.09, 0.20), new THREE.MeshLambertMaterial({color:0x6a4830}));
+  sStock.position.set(0, -0.01, 0.20); shotgun.add(sStock);
+  const sReceiver = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.07, 0.18), new THREE.MeshLambertMaterial({color:0x303038}));
+  sReceiver.position.set(0, 0.015, 0.04); shotgun.add(sReceiver);
+  // CANO DUPLO — dois canos paralelos side-by-side
+  const barrelMat = new THREE.MeshLambertMaterial({color:0x202028});
+  const sBarrelL = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.020, 0.34, 10), barrelMat);
+  sBarrelL.rotation.x = Math.PI/2; sBarrelL.position.set(-0.024, 0.018, -0.18); shotgun.add(sBarrelL);
+  const sBarrelR = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.020, 0.34, 10), barrelMat);
+  sBarrelR.rotation.x = Math.PI/2; sBarrelR.position.set(0.024, 0.018, -0.18); shotgun.add(sBarrelR);
+  // Anel/chave que une os 2 canos na boca
+  const sBarrelBridge = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.018, 0.04), new THREE.MeshLambertMaterial({color:0x404048}));
+  sBarrelBridge.position.set(0, 0.018, -0.34); shotgun.add(sBarrelBridge);
+  // Mira na ponta
+  const sFront = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.018, 0.012), new THREE.MeshLambertMaterial({color:0xc0a040}));
+  sFront.position.set(0, 0.038, -0.34); shotgun.add(sFront);
+  // Forend (madeira embaixo dos canos)
+  const sForend = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.04, 0.14), new THREE.MeshLambertMaterial({color:0x5a3818}));
+  sForend.position.set(0, -0.012, -0.10); shotgun.add(sForend);
+  // Gatilho
+  const sTrigger = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.025, 0.018), new THREE.MeshLambertMaterial({color:0x808088}));
+  sTrigger.position.set(0, -0.04, 0.04); shotgun.add(sTrigger);
 }
 shotgun.visible = false;
 scene.add(shotgun);
