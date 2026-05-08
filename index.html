@@ -2680,45 +2680,85 @@ renderer.setAnimationLoop(() => {
         p.quaternion.copy(q);
       }
     }
-    // Bounce eggs no chão (e assusta galinhas próximas)
-    if (!removed && p.userData.isEgg && p.userData.gravity && p.position.y <= 0.04 && p.userData.vel.y < 0) {
-      // Assusta galinhas próximas
-      for (const ck of chickens) {
-        if (ck.state === 'gone' || ck.state === 'abducting' || ck.state === 'scared') continue;
-        const d = Math.hypot(ck.group.position.x - p.position.x, ck.group.position.z - p.position.z);
-        if (d < 1.6) scareChicken(ck, p.position);
-      }
-      p.userData.bounceCount = (p.userData.bounceCount || 0) + 1;
-      const speed = p.userData.vel.length();
-      if (p.userData.bounceCount > 2 || speed < 1.5) {
-        // Estoura — splat e remove
-        if (debris.length < MAX_DEBRIS) {
-          playEggSplat();
-          const yolk = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), new THREE.MeshLambertMaterial({color:0xffd040}));
-          yolk.position.copy(p.position); yolk.position.y = 0.05;
-          yolk.userData.vel = new THREE.Vector3(0, 0, 0);
-          yolk.userData.rot = new THREE.Vector3(0, 0, 0);
-          yolk.userData.life = 0;
-          scene.add(yolk); debris.push(yolk);
-          for (let k = 0; k < 4; k++) {
-            const piece = new THREE.Mesh(new THREE.SphereGeometry(0.018, 4, 3), new THREE.MeshLambertMaterial({color:0xfaf6e8}));
-            piece.position.copy(p.position);
-            piece.userData.vel = new THREE.Vector3((Math.random()-0.5)*1.5, 0.3+Math.random()*0.4, (Math.random()-0.5)*1.5);
-            piece.userData.rot = new THREE.Vector3(0,0,0);
-            piece.userData.life = 0;
-            scene.add(piece); debris.push(piece);
-          }
-        }
-        scene.remove(p);
-        projectiles.splice(i, 1);
-        removed = true;
-      } else {
-        // Quica
+    // BOUNCE — todos os projéteis recocheteiam: chão, parede da casa, cercas
+    if (!removed) {
+      const v = p.userData.vel;
+      let bounced = false;
+      let surfacePos = null; // ponto de impacto (pra splat e assustar galinhas)
+
+      // CHÃO (qualquer projétil descendo abaixo de y=0.04)
+      if (p.position.y <= 0.04 && v.y < 0) {
         p.position.y = 0.04;
-        p.userData.vel.y = -p.userData.vel.y * 0.45;
-        p.userData.vel.x *= 0.7;
-        p.userData.vel.z *= 0.7;
-        playEggThrow(); // som suave de toc
+        v.y = -v.y * 0.45;
+        v.x *= 0.7;
+        v.z *= 0.7;
+        bounced = true;
+        surfacePos = p.position.clone();
+        // Assusta galinhas próximas só pelo impacto no chão
+        for (const ck of chickens) {
+          if (ck.state === 'gone' || ck.state === 'abducting' || ck.state === 'scared') continue;
+          const d = Math.hypot(ck.group.position.x - p.position.x, ck.group.position.z - p.position.z);
+          if (d < 1.6) scareChicken(ck, p.position);
+        }
+      }
+      // PAREDE DA CASA (z = -3.55, dentro de x:[-4,4] y:[0,4])
+      else if (p.position.z < -3.55 && prevPos.z >= -3.55 &&
+               Math.abs(p.position.x) < 4.5 && p.position.y < 4 && p.position.y > 0) {
+        p.position.z = -3.55;
+        v.z = -v.z * 0.5;
+        v.x *= 0.8;
+        bounced = true;
+      }
+      // CERCA FRONTAL (z = 17.95, baixa, y < 1.0)
+      else if (p.position.z > 17.95 && prevPos.z <= 17.95 &&
+               Math.abs(p.position.x) < YARD_HALF_X && p.position.y < 1.0) {
+        p.position.z = 17.95;
+        v.z = -v.z * 0.5;
+        bounced = true;
+      }
+      // CERCAS LATERAIS (x = ±9, baixas, y < 1.0)
+      else if (p.position.x > YARD_HALF_X - 0.05 && prevPos.x <= YARD_HALF_X - 0.05 &&
+               p.position.z > YARD_NEAR && p.position.z < YARD_FAR && p.position.y < 1.0) {
+        p.position.x = YARD_HALF_X - 0.05;
+        v.x = -v.x * 0.5;
+        bounced = true;
+      }
+      else if (p.position.x < -YARD_HALF_X + 0.05 && prevPos.x >= -YARD_HALF_X + 0.05 &&
+               p.position.z > YARD_NEAR && p.position.z < YARD_FAR && p.position.y < 1.0) {
+        p.position.x = -YARD_HALF_X + 0.05;
+        v.x = -v.x * 0.5;
+        bounced = true;
+      }
+
+      if (bounced) {
+        p.userData.bounceCount = (p.userData.bounceCount || 0) + 1;
+        const speed = v.length();
+        if (p.userData.bounceCount > 2 || speed < 1.4) {
+          // Splat final
+          if (p.userData.isEgg && debris.length < MAX_DEBRIS) {
+            playEggSplat();
+            const yolk = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), new THREE.MeshLambertMaterial({color:0xffd040}));
+            yolk.position.copy(p.position); yolk.position.y = Math.max(0.05, p.position.y);
+            yolk.userData.vel = new THREE.Vector3(0, 0, 0);
+            yolk.userData.rot = new THREE.Vector3(0, 0, 0);
+            yolk.userData.life = 0;
+            scene.add(yolk); debris.push(yolk);
+            for (let k = 0; k < 4; k++) {
+              const piece = new THREE.Mesh(new THREE.SphereGeometry(0.018, 4, 3), new THREE.MeshLambertMaterial({color:0xfaf6e8}));
+              piece.position.copy(p.position);
+              piece.userData.vel = new THREE.Vector3((Math.random()-0.5)*1.5, 0.3+Math.random()*0.4, (Math.random()-0.5)*1.5);
+              piece.userData.rot = new THREE.Vector3(0,0,0);
+              piece.userData.life = 0;
+              scene.add(piece); debris.push(piece);
+            }
+          }
+          scene.remove(p);
+          projectiles.splice(i, 1);
+          removed = true;
+        } else {
+          // Som de toc no recochete
+          if (p.userData.isEgg) playEggThrow();
+        }
       }
     }
     if (!removed && (p.userData.life > 5 || p.position.y < -5)) {
