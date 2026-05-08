@@ -1733,20 +1733,27 @@ function spawnUfoForWave() {
   if (aliveChickens.length === 0) return;
   const target = aliveChickens[Math.floor(Math.random() * aliveChickens.length)];
   const u = makeUfo(w.ufoScale || 1);
-  const baseDist = w.spawnDist != null ? w.spawnDist : 18;
-  const distRand = w.spawnDistRand != null ? w.spawnDistRand : 8;
-  const baseH    = w.spawnH    != null ? w.spawnH    : 16;
-  const hRand    = w.spawnHRand != null ? w.spawnHRand : 8;
-  // Se spawnFront, ângulo limitado a -PI/2..+PI/2 (pra UFO sair na frente do chicken/player)
-  const angle = w.spawnFront
-    ? -Math.PI/2 + Math.random() * Math.PI
-    : Math.random() * Math.PI * 2;
-  const dist = baseDist + Math.random() * distRand;
-  u.group.position.set(
-    target.group.position.x + Math.cos(angle) * dist,
-    baseH + Math.random() * hRand,
-    target.group.position.z + Math.sin(angle) * dist
-  );
+  // Wave 0 (hands): spawn bem perto do PLAYER, não do chicken — bem na cara, fácil
+  if (w.weapon === 'hands') {
+    const x = (Math.random() - 0.5) * 3;            // -1.5 a +1.5 (na frente do player)
+    const z = 2.0 + Math.random() * 2.0;            // 2-4m do player (bem perto)
+    const y = 1.8 + Math.random() * 0.8;            // 1.8-2.6m de altura (na linha dos olhos)
+    u.group.position.set(x, y, z);
+  } else {
+    const baseDist = w.spawnDist != null ? w.spawnDist : 18;
+    const distRand = w.spawnDistRand != null ? w.spawnDistRand : 8;
+    const baseH    = w.spawnH    != null ? w.spawnH    : 16;
+    const hRand    = w.spawnHRand != null ? w.spawnHRand : 8;
+    const angle = w.spawnFront
+      ? -Math.PI/2 + Math.random() * Math.PI
+      : Math.random() * Math.PI * 2;
+    const dist = baseDist + Math.random() * distRand;
+    u.group.position.set(
+      target.group.position.x + Math.cos(angle) * dist,
+      baseH + Math.random() * hRand,
+      target.group.position.z + Math.sin(angle) * dist
+    );
+  }
   scene.add(u.group);
   ufos.push({
     ...u,
