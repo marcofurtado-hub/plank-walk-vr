@@ -926,6 +926,20 @@ scene.add(eggInRightHand);
 // Controller velocity tracking (for throwing eggs)
 const ctrlPrevPos = { left: new THREE.Vector3(), right: new THREE.Vector3() };
 const ctrlVel = { left: new THREE.Vector3(), right: new THREE.Vector3() };
+// Buffer dos últimos frames pra capturar o PICO do swing (não a desaceleração)
+const VEL_HISTORY_SIZE = 10;
+const ctrlVelHistory = { left: [], right: [] };
+function getPeakVel(side) {
+  const hist = ctrlVelHistory[side];
+  if (hist.length === 0) return ctrlVel[side];
+  let peak = hist[0];
+  let peakSq = peak.lengthSq();
+  for (let i = 1; i < hist.length; i++) {
+    const sq = hist[i].lengthSq();
+    if (sq > peakSq) { peak = hist[i]; peakSq = sq; }
+  }
+  return peak;
+}
 let eggReadyLeft = true;
 let eggReadyRight = true;
 
@@ -1319,25 +1333,29 @@ function makeEggProj(scale = 1) {
   return g;
 }
 
-// Throw egg — intensidade e direção 1:1 com o movimento da mão (sem bias fixo)
+// Throw egg — intensidade reflete o pico do swing, com amplificação física natural
 function throwEgg(ctrl, vel) {
   const origin = new THREE.Vector3(); ctrl.getWorldPosition(origin);
   const proj = makeEggProj(1);
   proj.position.copy(origin);
-  // Velocidade do ovo = velocidade da mão * 1.6 — mexeu pouco vai pouco, mexeu forte vai longe
-  // Sem bias forward: direção é exatamente o vetor de movimento
-  const v = vel.clone().multiplyScalar(1.6);
+  // Multiplicador progressivo: lento ainda funciona, rápido vai longe
+  // speed 2 → factor 2.6 → ovo 5.2 m/s
+  // speed 6 → factor 3.8 → ovo ~23 m/s
+  // speed 12 → factor 4.5 → ovo ~54 m/s
+  const speedMag = vel.length();
+  const factor = Math.min(2.0 + speedMag * 0.3, 4.5);
+  const v = vel.clone().multiplyScalar(factor);
   proj.userData.vel = v;
   proj.userData.life = 0;
   proj.userData.damage = 1;
   proj.userData.gravity = true;
+  proj.userData.gravityScale = 0.7;  // ovo voa mais "leve" — gravidade reduzida
   proj.userData.isPlasma = false;
   proj.userData.isEgg = true;
   scene.add(proj);
   projectiles.push(proj);
   playEggThrow();
-  const speedMag = vel.length();
-  pulseController(ctrl, Math.min(0.9, 0.2 + speedMag * 0.1), 70);
+  pulseController(ctrl, Math.min(0.95, 0.25 + speedMag * 0.1), 80);
 }
 
 // =============================================================================
@@ -2231,7 +2249,7 @@ renderer.setAnimationLoop(() => {
     if (activeWeapon === 'shotgun') fireShotgun();
     else if (activeWeapon === 'gatling') fireGatlingBurst();
   }
-  // Track controller velocity (for egg throwing)
+  // Track controller velocity (for egg throwing) + histórico pro peak
   if (renderer.xr.isPresenting && dt > 0) {
     const lp = new THREE.Vector3(); leftCtrl.getWorldPosition(lp);
     const rp = new THREE.Vector3(); rightCtrl.getWorldPosition(rp);
@@ -2239,20 +2257,29 @@ renderer.setAnimationLoop(() => {
     ctrlVel.right.copy(rp).sub(ctrlPrevPos.right).divideScalar(Math.max(dt, 0.001));
     ctrlPrevPos.left.copy(lp);
     ctrlPrevPos.right.copy(rp);
+    // Push no histórico (clone pra não compartilhar referência)
+    ctrlVelHistory.left.push(ctrlVel.left.clone());
+    if (ctrlVelHistory.left.length > VEL_HISTORY_SIZE) ctrlVelHistory.left.shift();
+    ctrlVelHistory.right.push(ctrlVel.right.clone());
+    if (ctrlVelHistory.right.length > VEL_HISTORY_SIZE) ctrlVelHistory.right.shift();
   }
 
-  // HANDS: detecta arremesso por velocidade — threshold baixo pra captar arremessos suaves
-  // Throws lentos viram ovos lentos (vel*1.6); rápidos viram ovos rápidos. Direção 1:1.
-  const HAND_THROW_VEL = 1.5;
+  // HANDS: detecta arremesso por velocidade — usa PEAK do buffer (pega o pico do swing)
+  // Threshold + peak: dispara só com swing intencional, e usa a vel máxima do movimento
+  const HAND_THROW_VEL = 2.0;
   if (activeWeapon === 'hands' && (state === 'playing' || state === 'wave_intro') && renderer.xr.isPresenting) {
     if (eggReadyLeft && ctrlVel.left.length() > HAND_THROW_VEL) {
-      throwEgg(leftCtrl, ctrlVel.left);
+      const peak = getPeakVel('left');
+      throwEgg(leftCtrl, peak);
+      ctrlVelHistory.left.length = 0; // reset pra próximo throw
       eggReadyLeft = false;
       eggInLeftHand.visible = false;
       setTimeout(() => { eggReadyLeft = true; if (activeWeapon === 'hands') eggInLeftHand.visible = true; }, 380);
     }
     if (eggReadyRight && ctrlVel.right.length() > HAND_THROW_VEL) {
-      throwEgg(rightCtrl, ctrlVel.right);
+      const peak = getPeakVel('right');
+      throwEgg(rightCtrl, peak);
+      ctrlVelHistory.right.length = 0;
       eggReadyRight = false;
       eggInRightHand.visible = false;
       setTimeout(() => { eggReadyRight = true; if (activeWeapon === 'hands') eggInRightHand.visible = true; }, 380);
@@ -2609,7 +2636,10 @@ renderer.setAnimationLoop(() => {
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i];
     const prevPos = p.position.clone();   // pra teste swept (segmento)
-    if (p.userData.gravity) p.userData.vel.y -= 9.8 * dt;
+    if (p.userData.gravity) {
+      const gScale = p.userData.gravityScale != null ? p.userData.gravityScale : 1.0;
+      p.userData.vel.y -= 9.8 * gScale * dt;
+    }
     p.position.addScaledVector(p.userData.vel, dt);
     p.userData.life += dt;
     let removed = false;
