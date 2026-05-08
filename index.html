@@ -2216,7 +2216,17 @@ renderer.xr.addEventListener('sessionstart', () => {
     }
     if (foundRight) rightCtrl = foundRight;
     if (foundLeft) leftCtrl = foundLeft;
-  }, 200);
+    // Recenter — gira cameraRig pra player olhar o yard (+Z) na hora de entrar
+    const fwd = new THREE.Vector3();
+    camera.getWorldDirection(fwd);
+    fwd.y = 0;
+    if (fwd.lengthSq() > 0.001) {
+      fwd.normalize();
+      // Quero que o player olhe pro yard (+Z). lookAngle = atan2(fwd.x, fwd.z): 0 = +Z, ±π = -Z.
+      const lookAngle = Math.atan2(fwd.x, fwd.z);
+      cameraRig.rotation.y -= lookAngle;
+    }
+  }, 350);
 });
 
 // =============================================================================
