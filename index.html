@@ -145,13 +145,13 @@ const CROSSBOW_ARROW_SPEED = 38;       // sempre forte e direto (sem gravidade)
 const UFO_HIT_RADIUS = 0.5;
 const TOTAL_CHICKENS = 5;
 
-// Wave config — armas progressivas conforme pedido do PM
+// Wave config — UFOs ficam menores conforme avança (mais difícil de acertar)
 const WAVES = [
-  { count: 5,  speed: 1.6, beamTime: 6.0, interval: 1.4,  weapon: 'slingshot', label: 'ESTILINGUE', bossHp: 3 },
-  { count: 7,  speed: 1.9, beamTime: 5.5, interval: 1.0,  weapon: 'crossbow',  label: 'BESTA',      bossHp: 5 },
-  { count: 11, speed: 2.2, beamTime: 5.0, interval: 0.75, weapon: 'shotgun',   label: 'ESCOPETA',   bossHp: 7 },
-  { count: 16, speed: 2.5, beamTime: 4.5, interval: 0.5,  weapon: 'gatling',   label: 'GATLING',    bossHp: 14 },
-  { count: 22, speed: 2.9, beamTime: 4.0, interval: 0.38, weapon: 'laser',     label: 'LASER',      bossHp: 30 },
+  { count: 5,  speed: 1.6, beamTime: 6.0, interval: 1.4,  weapon: 'slingshot', label: 'ESTILINGUE', bossHp: 3,  ufoScale: 1.45 },
+  { count: 7,  speed: 1.9, beamTime: 5.5, interval: 1.0,  weapon: 'crossbow',  label: 'BESTA',      bossHp: 5,  ufoScale: 1.25 },
+  { count: 11, speed: 2.2, beamTime: 5.0, interval: 0.75, weapon: 'shotgun',   label: 'ESCOPETA',   bossHp: 7,  ufoScale: 1.05 },
+  { count: 16, speed: 2.5, beamTime: 4.5, interval: 0.5,  weapon: 'gatling',   label: 'GATLING',    bossHp: 14, ufoScale: 0.85 },
+  { count: 22, speed: 2.9, beamTime: 4.0, interval: 0.38, weapon: 'laser',     label: 'LASER',      bossHp: 30, ufoScale: 0.7  },
 ];
 
 // =============================================================================
@@ -1096,7 +1096,7 @@ function tickLaser(dt) {
     if (t < 0 || t > closestT) continue;
     const closestPt = origin.clone().addScaledVector(fwd, t);
     const distLine = closestPt.distanceTo(u.group.position);
-    const r = UFO_HIT_RADIUS * (u.isBoss ? 2.4 : 1) + 0.18;
+    const r = UFO_HIT_RADIUS * u.group.scale.x + 0.18;
     if (distLine < r && t < closestT) { closestT = t; target = u; }
   }
   // Update beam visual
@@ -1559,7 +1559,7 @@ function spawnUfoForWave() {
   const aliveChickens = chickens.filter(c => c.state !== 'gone' && c.state !== 'abducting');
   if (aliveChickens.length === 0) return;
   const target = aliveChickens[Math.floor(Math.random() * aliveChickens.length)];
-  const u = makeUfo();
+  const u = makeUfo(w.ufoScale || 1);
   const angle = Math.random() * Math.PI * 2;
   const dist = 18 + Math.random() * 8;
   u.group.position.set(
@@ -2284,7 +2284,7 @@ renderer.setAnimationLoop(() => {
     let removed = false;
     for (const u of ufos) {
       if (u.state === 'dead' || u.state === 'escaping_done') continue;
-      if (p.position.distanceTo(u.group.position) < UFO_HIT_RADIUS * (u.isBoss ? 2.4 : 1)) {
+      if (p.position.distanceTo(u.group.position) < UFO_HIT_RADIUS * u.group.scale.x) {
         damageUfo(u, p.userData.damage);
         scene.remove(p);
         projectiles.splice(i, 1);
