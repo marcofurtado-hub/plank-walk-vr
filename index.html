@@ -1333,23 +1333,23 @@ function makeEggProj(scale = 1) {
   return g;
 }
 
-// Throw egg — intensidade reflete o pico do swing, com amplificação física natural
+// Throw egg — amplificação forte + gravidade leve, pra arremesso ter sensação física boa
 function throwEgg(ctrl, vel) {
   const origin = new THREE.Vector3(); ctrl.getWorldPosition(origin);
   const proj = makeEggProj(1);
   proj.position.copy(origin);
-  // Multiplicador progressivo: lento ainda funciona, rápido vai longe
-  // speed 2 → factor 2.6 → ovo 5.2 m/s
-  // speed 6 → factor 3.8 → ovo ~23 m/s
-  // speed 12 → factor 4.5 → ovo ~54 m/s
+  // Multiplicador alto pra dar peso/força:
+  // speed 2 → 4.0x → ovo 8 m/s (lento mas chega na nave em wave 0)
+  // speed 6 → 7.5x → ovo 45 m/s (forte)
+  // speed 10 → 9.5x (cap) → ovo 95 m/s (muito forte)
   const speedMag = vel.length();
-  const factor = Math.min(2.0 + speedMag * 0.3, 4.5);
+  const factor = Math.min(3.0 + speedMag * 0.6, 9.5);
   const v = vel.clone().multiplyScalar(factor);
   proj.userData.vel = v;
   proj.userData.life = 0;
   proj.userData.damage = 1;
   proj.userData.gravity = true;
-  proj.userData.gravityScale = 0.7;  // ovo voa mais "leve" — gravidade reduzida
+  proj.userData.gravityScale = 0.35;  // ovo voa bem leve, com arco solto
   proj.userData.isPlasma = false;
   proj.userData.isEgg = true;
   scene.add(proj);
