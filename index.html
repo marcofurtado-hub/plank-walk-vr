@@ -1201,7 +1201,7 @@ function getRightControllerOrigin() {
   return p;
 }
 
-const MAX_PROJECTILES = 90;
+const MAX_PROJECTILES = 220;
 function fireBullet(speed, damage, spreadRad = 0, scale = 1, flashColor = 0xffd040) {
   if (projectiles.length > MAX_PROJECTILES) return;
   const origin = getRightControllerOrigin();
@@ -1224,6 +1224,7 @@ function fireBullet(speed, damage, spreadRad = 0, scale = 1, flashColor = 0xffd0
   proj.userData.gravity = false;
   proj.userData.isPlasma = false;
   proj.userData.isEgg = true;
+  proj.userData.maxLife = 2.0;  // bullets despawnam em 2s pra liberar slot do cap
   scene.add(proj);
   projectiles.push(proj);
   spawnMuzzleFlash(origin, scale, flashColor);
@@ -2518,12 +2519,21 @@ renderer.setAnimationLoop(() => {
       elasticR.visible = false;
     }
 
+    // Polling direto do gamepad pro hold-fire (mais confiável que selectstart/end)
+    const rightHeldPolled = (() => {
+      const sess = renderer.xr.getSession();
+      if (!sess) return triggerHeld.right;
+      for (const src of sess.inputSources) {
+        if (src.handedness === 'right' && src.gamepad?.buttons?.[0]?.pressed) return true;
+      }
+      return triggerHeld.right;
+    })();
     // Gatling continuous fire (hold trigger)
-    if (activeWeapon === 'gatling' && triggerHeld.right && weaponCD <= 0) {
+    if (activeWeapon === 'gatling' && rightHeldPolled && weaponCD <= 0) {
       fireGatlingBurst();
     }
     // Shotgun continuous fire (hold trigger)
-    if (activeWeapon === 'shotgun' && triggerHeld.right && weaponCD <= 0) {
+    if (activeWeapon === 'shotgun' && rightHeldPolled && weaponCD <= 0) {
       fireShotgun();
     }
   } else if (sActive && !renderer.xr.isPresenting) {
@@ -2922,7 +2932,8 @@ renderer.setAnimationLoop(() => {
         }
       }
     }
-    if (!removed && (p.userData.life > 5 || p.position.y < -5)) {
+    const maxLife = p.userData.maxLife != null ? p.userData.maxLife : 5;
+    if (!removed && (p.userData.life > maxLife || p.position.y < -5)) {
       scene.remove(p);
       projectiles.splice(i, 1);
     }
