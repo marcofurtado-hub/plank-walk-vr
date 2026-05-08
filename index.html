@@ -145,13 +145,14 @@ const CROSSBOW_ARROW_SPEED = 38;       // sempre forte e direto (sem gravidade)
 const UFO_HIT_RADIUS = 0.5;
 const TOTAL_CHICKENS = 5;
 
-// Wave config — UFOs ficam menores conforme avança (mais difícil de acertar)
+// Wave config — UFOs ficam menores conforme avança; armas progressivas, todas atiram OVOS
 const WAVES = [
-  { count: 5,  speed: 1.6, beamTime: 6.0, interval: 1.4,  weapon: 'slingshot', label: 'ESTILINGUE', bossHp: 3,  ufoScale: 1.45 },
-  { count: 7,  speed: 1.9, beamTime: 5.5, interval: 1.0,  weapon: 'crossbow',  label: 'BESTA',      bossHp: 5,  ufoScale: 1.25 },
-  { count: 11, speed: 2.2, beamTime: 5.0, interval: 0.75, weapon: 'shotgun',   label: 'ESCOPETA',   bossHp: 7,  ufoScale: 1.05 },
-  { count: 16, speed: 2.5, beamTime: 4.5, interval: 0.5,  weapon: 'gatling',   label: 'GATLING',    bossHp: 14, ufoScale: 0.85 },
-  { count: 22, speed: 2.9, beamTime: 4.0, interval: 0.38, weapon: 'laser',     label: 'LASER',      bossHp: 30, ufoScale: 0.7  },
+  { count: 4,  speed: 1.3, beamTime: 7.0, interval: 1.7,  weapon: 'hands',     label: 'OVOS NA MÃO', bossHp: 0,  ufoScale: 1.7  },
+  { count: 5,  speed: 1.6, beamTime: 6.0, interval: 1.4,  weapon: 'slingshot', label: 'ESTILINGUE',  bossHp: 3,  ufoScale: 1.45 },
+  { count: 7,  speed: 1.9, beamTime: 5.5, interval: 1.0,  weapon: 'crossbow',  label: 'BESTA',       bossHp: 5,  ufoScale: 1.25 },
+  { count: 11, speed: 2.2, beamTime: 5.0, interval: 0.75, weapon: 'shotgun',   label: 'ESCOPETA',    bossHp: 7,  ufoScale: 1.05 },
+  { count: 16, speed: 2.5, beamTime: 4.5, interval: 0.5,  weapon: 'gatling',   label: 'GATLING',     bossHp: 14, ufoScale: 0.85 },
+  { count: 22, speed: 2.9, beamTime: 4.0, interval: 0.38, weapon: 'laser',     label: 'LASER',       bossHp: 30, ufoScale: 0.7  },
 ];
 
 // =============================================================================
@@ -876,7 +877,44 @@ const laserBeamCore = new THREE.Mesh(
 );
 laserBeamCore.visible = false; scene.add(laserBeamCore);
 
-const allWeaponGroups = { slingshot, crossbow, shotgun, gatling, laser };
+// HANDS — não tem mesh de arma, só ovos visíveis nas mãos
+const hands = new THREE.Group();
+hands.visible = false;
+scene.add(hands);
+
+// Egg meshes attached to each hand (visible in 'hands' weapon mode)
+function makeHandEggMesh() {
+  const g = new THREE.Group();
+  const egg = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 8), new THREE.MeshLambertMaterial({color:0xfaf6e8}));
+  egg.scale.set(1, 1.30, 1);
+  g.add(egg);
+  // Subtle yolk-color speckles
+  for (let i = 0; i < 5; i++) {
+    const speck = new THREE.Mesh(
+      new THREE.SphereGeometry(0.005, 4, 3),
+      new THREE.MeshLambertMaterial({color:0xc8a070})
+    );
+    const a = Math.random()*Math.PI*2;
+    const b = Math.random()*Math.PI;
+    speck.position.set(Math.sin(b)*Math.cos(a)*0.04, Math.cos(b)*0.05, Math.sin(b)*Math.sin(a)*0.04);
+    g.add(speck);
+  }
+  return g;
+}
+const eggInLeftHand = makeHandEggMesh();
+eggInLeftHand.visible = false;
+scene.add(eggInLeftHand);
+const eggInRightHand = makeHandEggMesh();
+eggInRightHand.visible = false;
+scene.add(eggInRightHand);
+
+// Controller velocity tracking (for throwing eggs)
+const ctrlPrevPos = { left: new THREE.Vector3(), right: new THREE.Vector3() };
+const ctrlVel = { left: new THREE.Vector3(), right: new THREE.Vector3() };
+let eggReadyLeft = true;
+let eggReadyRight = true;
+
+const allWeaponGroups = { hands, slingshot, crossbow, shotgun, gatling, laser };
 
 // ----- PEBBLE / POUCH (slingshot only) -----
 const pouchMesh = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.025, 0.025), new THREE.MeshLambertMaterial({color:0x382010}));
@@ -938,7 +976,6 @@ function equipWeapon(name) {
     pebbleReadyMesh.visible = true;
     elasticL.visible = true;
     elasticR.visible = true;
-    // Different pebble visual: arrow for crossbow
     pebbleReadyMesh.scale.set(1, 1, name === 'crossbow' ? 4 : 1);
     pebbleReadyMesh.material.color.setHex(name === 'crossbow' ? 0x6a4828 : 0x404048);
   } else {
@@ -947,6 +984,16 @@ function equipWeapon(name) {
     pebbleReadyMesh.scale.set(1, 1, 1);
     elasticL.visible = false;
     elasticR.visible = false;
+  }
+  // Hand eggs only in 'hands' weapon mode
+  if (name === 'hands') {
+    eggReadyLeft = true;
+    eggReadyRight = true;
+    eggInLeftHand.visible = true;
+    eggInRightHand.visible = true;
+  } else {
+    eggInLeftHand.visible = false;
+    eggInRightHand.visible = false;
   }
   updateHUD();
   if (typeof updateScoreboard === 'function') updateScoreboard();
@@ -1204,6 +1251,36 @@ function makeArrowMesh() {
   return g;
 }
 
+// Egg projectile (used by hands + later by all weapons in action 3)
+function makeEggProj(scale = 1) {
+  const g = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), new THREE.MeshLambertMaterial({color:0xfaf6e8}));
+  g.scale.set(scale, scale * 1.30, scale);
+  return g;
+}
+
+// Throw egg from controller using its current world velocity
+function throwEgg(ctrl, vel) {
+  const origin = new THREE.Vector3(); ctrl.getWorldPosition(origin);
+  const proj = makeEggProj(1);
+  proj.position.copy(origin);
+  // Velocity = ctrl velocity * boost + small forward bias to ensure it goes outward
+  const v = vel.clone().multiplyScalar(2.4);
+  const fwd = new THREE.Vector3(0, 0, -1);
+  const q = new THREE.Quaternion(); ctrl.getWorldQuaternion(q);
+  fwd.applyQuaternion(q);
+  v.addScaledVector(fwd, 4.0);
+  proj.userData.vel = v;
+  proj.userData.life = 0;
+  proj.userData.damage = 1;
+  proj.userData.gravity = true;
+  proj.userData.isPlasma = false;
+  proj.userData.isEgg = true;
+  scene.add(proj);
+  projectiles.push(proj);
+  playEggThrow();
+  pulseController(ctrl, 0.5, 80);
+}
+
 // =============================================================================
 // AUDIO
 // =============================================================================
@@ -1258,6 +1335,16 @@ function playSlingshotRelease() {
   tone(1800, 0.05, 'square', 0.2);
   noiseBurst(0.08, 0.4, 'highpass', 1200, 1);
   tone(180, 0.18, 'sine', 0.15, 0.005, 60);
+}
+function playEggThrow() {
+  // soft swoosh + low thump
+  noiseBurst(0.12, 0.18, 'bandpass', 800, 1.5);
+  tone(180, 0.10, 'sine', 0.10, 0.005, 90);
+}
+function playEggSplat() {
+  // wet splat
+  noiseBurst(0.18, 0.5, 'lowpass', 350, 1, 5);
+  tone(110, 0.12, 'sine', 0.18, 0.005, 50);
 }
 function playArrowRelease() {
   // bowstring twang + arrow whoosh
@@ -1761,6 +1848,10 @@ function onTriggerStart(ctrl) {
   }
   if (state !== 'playing' && state !== 'wave_intro') return;
 
+  // HANDS: trigger doesn't do anything immediate — the throw happens on RELEASE
+  if (activeWeapon === 'hands') {
+    return;
+  }
   // SLINGSHOT or CROSSBOW: left trigger grabs pouch/string
   if ((activeWeapon === 'slingshot' || activeWeapon === 'crossbow') && ctrl === leftCtrl) {
     const lh = new THREE.Vector3();
@@ -1797,6 +1888,23 @@ function onTriggerEnd(ctrl) {
   }
   if (activeWeapon === 'laser' && ctrl === rightCtrl) {
     stopLaserBeam();
+  }
+  // HANDS: throw egg with controller's current velocity
+  if (activeWeapon === 'hands' && (state === 'playing' || state === 'wave_intro')) {
+    const isLeft = ctrl === leftCtrl;
+    const ready = isLeft ? eggReadyLeft : eggReadyRight;
+    if (!ready) return;
+    const vel = isLeft ? ctrlVel.left : ctrlVel.right;
+    throwEgg(ctrl, vel);
+    if (isLeft) {
+      eggReadyLeft = false;
+      eggInLeftHand.visible = false;
+      setTimeout(() => { eggReadyLeft = true; if (activeWeapon === 'hands') eggInLeftHand.visible = true; }, 350);
+    } else {
+      eggReadyRight = false;
+      eggInRightHand.visible = false;
+      setTimeout(() => { eggReadyRight = true; if (activeWeapon === 'hands') eggInRightHand.visible = true; }, 350);
+    }
   }
 }
 
@@ -1884,6 +1992,19 @@ renderer.domElement.addEventListener('click', () => {
 });
 
 function desktopShoot() {
+  if (activeWeapon === 'hands') {
+    const camPos = new THREE.Vector3(); camera.getWorldPosition(camPos);
+    const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+    const proj = makeEggProj(1);
+    proj.position.copy(camPos).addScaledVector(dir, 0.3);
+    proj.userData.vel = dir.clone().multiplyScalar(12).addScaledVector(new THREE.Vector3(0,1,0), 1);
+    proj.userData.life = 0; proj.userData.damage = 1; proj.userData.gravity = true;
+    proj.userData.isEgg = true;
+    scene.add(proj); projectiles.push(proj);
+    playEggThrow();
+    weaponCD = 0.4;
+    return;
+  }
   if (activeWeapon === 'slingshot') {
     const camPos = new THREE.Vector3(); camera.getWorldPosition(camPos);
     const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
@@ -1982,6 +2103,45 @@ renderer.setAnimationLoop(() => {
     if (activeWeapon === 'shotgun') fireShotgun();
     else if (activeWeapon === 'gatling') fireGatlingBurst();
   }
+  // Track controller velocity (for egg throwing)
+  if (renderer.xr.isPresenting && dt > 0) {
+    const lp = new THREE.Vector3(); leftCtrl.getWorldPosition(lp);
+    const rp = new THREE.Vector3(); rightCtrl.getWorldPosition(rp);
+    ctrlVel.left.copy(lp).sub(ctrlPrevPos.left).divideScalar(Math.max(dt, 0.001));
+    ctrlVel.right.copy(rp).sub(ctrlPrevPos.right).divideScalar(Math.max(dt, 0.001));
+    ctrlPrevPos.left.copy(lp);
+    ctrlPrevPos.right.copy(rp);
+  }
+
+  // HANDS: position eggs in each hand with small offset toward palm
+  if (activeWeapon === 'hands') {
+    const showHands = state === 'playing' || state === 'wave_intro' || state === 'wave_complete';
+    if (showHands && renderer.xr.isPresenting) {
+      if (eggReadyLeft) {
+        const lp = new THREE.Vector3(); leftCtrl.getWorldPosition(lp);
+        const fwd = new THREE.Vector3(0, -0.04, -0.05);
+        const q = new THREE.Quaternion(); leftCtrl.getWorldQuaternion(q);
+        fwd.applyQuaternion(q);
+        eggInLeftHand.position.copy(lp).add(fwd);
+        eggInLeftHand.visible = true;
+      } else { eggInLeftHand.visible = false; }
+      if (eggReadyRight) {
+        const rp = new THREE.Vector3(); rightCtrl.getWorldPosition(rp);
+        const fwd = new THREE.Vector3(0, -0.04, -0.05);
+        const q = new THREE.Quaternion(); rightCtrl.getWorldQuaternion(q);
+        fwd.applyQuaternion(q);
+        eggInRightHand.position.copy(rp).add(fwd);
+        eggInRightHand.visible = true;
+      } else { eggInRightHand.visible = false; }
+    } else {
+      eggInLeftHand.visible = false;
+      eggInRightHand.visible = false;
+    }
+  } else {
+    eggInLeftHand.visible = false;
+    eggInRightHand.visible = false;
+  }
+
   // Tick laser beam (continuous)
   if (laserBeamActive) tickLaser(dt);
 
@@ -2286,6 +2446,21 @@ renderer.setAnimationLoop(() => {
       if (u.state === 'dead' || u.state === 'escaping_done') continue;
       if (p.position.distanceTo(u.group.position) < UFO_HIT_RADIUS * u.group.scale.x) {
         damageUfo(u, p.userData.damage);
+        if (p.userData.isEgg) {
+          playEggSplat();
+          // yolk + shell debris at hit
+          for (let k = 0; k < 8; k++) {
+            const splash = new THREE.Mesh(
+              new THREE.SphereGeometry(0.025 + Math.random()*0.015, 5, 4),
+              new THREE.MeshLambertMaterial({color: k < 4 ? 0xffd040 : 0xfaf6e8})
+            );
+            splash.position.copy(p.position);
+            splash.userData.vel = new THREE.Vector3((Math.random()-0.5)*3, 0.6+Math.random()*1.4, (Math.random()-0.5)*3);
+            splash.userData.rot = new THREE.Vector3(0,0,0);
+            splash.userData.life = 0;
+            scene.add(splash); debris.push(splash);
+          }
+        }
         scene.remove(p);
         projectiles.splice(i, 1);
         removed = true;
