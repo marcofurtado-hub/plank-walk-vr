@@ -2484,17 +2484,51 @@ renderer.setAnimationLoop(() => {
         damageUfo(u, p.userData.damage);
         if (p.userData.isEgg) {
           playEggSplat();
-          // yolk + shell debris at hit
-          for (let k = 0; k < 8; k++) {
-            const splash = new THREE.Mesh(
-              new THREE.SphereGeometry(0.025 + Math.random()*0.015, 5, 4),
-              new THREE.MeshLambertMaterial({color: k < 4 ? 0xffd040 : 0xfaf6e8})
+          // 1 GEMA central grande (amarela)
+          const yolk = new THREE.Mesh(
+            new THREE.SphereGeometry(0.07, 10, 8),
+            new THREE.MeshLambertMaterial({color:0xffd040})
+          );
+          yolk.position.copy(p.position);
+          yolk.userData.vel = new THREE.Vector3((Math.random()-0.5)*0.8, 0.3+Math.random()*0.6, (Math.random()-0.5)*0.8);
+          yolk.userData.rot = new THREE.Vector3(0, 0, 0);
+          yolk.userData.life = 0;
+          scene.add(yolk); debris.push(yolk);
+          // 10 BOLINHAS BRANCAS (clara + casca) ao redor
+          for (let k = 0; k < 10; k++) {
+            const piece = new THREE.Mesh(
+              new THREE.SphereGeometry(0.018 + Math.random()*0.012, 6, 5),
+              new THREE.MeshLambertMaterial({color: 0xfaf6e8})
             );
-            splash.position.copy(p.position);
-            splash.userData.vel = new THREE.Vector3((Math.random()-0.5)*3, 0.6+Math.random()*1.4, (Math.random()-0.5)*3);
-            splash.userData.rot = new THREE.Vector3(0,0,0);
-            splash.userData.life = 0;
-            scene.add(splash); debris.push(splash);
+            piece.position.copy(p.position);
+            // explode em todas direções
+            const phi = Math.random() * Math.PI * 2;
+            const theta = Math.random() * Math.PI * 0.7;
+            const speed = 2.5 + Math.random() * 2.5;
+            piece.userData.vel = new THREE.Vector3(
+              Math.sin(theta) * Math.cos(phi) * speed,
+              Math.cos(theta) * speed * 0.8 + 0.4,
+              Math.sin(theta) * Math.sin(phi) * speed
+            );
+            piece.userData.rot = new THREE.Vector3(0, 0, 0);
+            piece.userData.life = 0;
+            scene.add(piece); debris.push(piece);
+          }
+          // 4 BOLINHAS AMARELO-CLARO (clara mais translúcida) menores
+          for (let k = 0; k < 4; k++) {
+            const clara = new THREE.Mesh(
+              new THREE.SphereGeometry(0.022, 6, 5),
+              new THREE.MeshLambertMaterial({color:0xfff4c0, transparent:true, opacity:0.8})
+            );
+            clara.position.copy(p.position);
+            clara.userData.vel = new THREE.Vector3(
+              (Math.random()-0.5)*2.4,
+              0.5 + Math.random()*1.0,
+              (Math.random()-0.5)*2.4
+            );
+            clara.userData.rot = new THREE.Vector3(0, 0, 0);
+            clara.userData.life = 0;
+            scene.add(clara); debris.push(clara);
           }
         }
         scene.remove(p);
