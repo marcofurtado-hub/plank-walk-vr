@@ -1078,8 +1078,14 @@ function getRightControllerForward() {
 }
 function getRightControllerOrigin() {
   const p = new THREE.Vector3();
-  if (renderer.xr.isPresenting) rightCtrl.getWorldPosition(p);
-  else camera.getWorldPosition(p);
+  if (renderer.xr.isPresenting) {
+    rightCtrl.getWorldPosition(p);
+  } else {
+    // Desktop/mobile: tiros saem da arma visível (canto inferior direito), não do centro da tela
+    const grp = allWeaponGroups[activeWeapon];
+    if (grp) grp.getWorldPosition(p);
+    else camera.getWorldPosition(p);
+  }
   return p;
 }
 
@@ -1157,17 +1163,27 @@ function tickLaser(dt) {
   if (renderer.xr.isPresenting) {
     rightCtrl.getWorldPosition(origin);
     rightCtrl.getWorldQuaternion(q);
+    fwd.applyQuaternion(q);
+    origin.addScaledVector(fwd, 0.32); // emitter offset à frente do controller
   } else {
-    camera.getWorldPosition(origin);
+    // Desktop/mobile: laser sai do bocal visível da arma; mira na direção da câmera
+    const lgrp = allWeaponGroups['laser'];
+    if (lgrp) {
+      const local = new THREE.Vector3(0, 0, -0.32); // posição do emitter no laser local
+      const w = local.clone();
+      lgrp.localToWorld(w);
+      origin.copy(w);
+    } else {
+      camera.getWorldPosition(origin);
+    }
     camera.getWorldQuaternion(q);
+    fwd.applyQuaternion(q);
   }
-  fwd.applyQuaternion(q);
   // tremor: small random jitter on direction
   fwd.x += (Math.random() - 0.5) * 0.025;
   fwd.y += (Math.random() - 0.5) * 0.025;
   fwd.z += (Math.random() - 0.5) * 0.025;
   fwd.normalize();
-  origin.addScaledVector(fwd, 0.32);
 
   // Find closest UFO in beam
   let closestT = 40;
