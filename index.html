@@ -150,7 +150,7 @@ const TOTAL_CHICKENS = 5;
 // Wave config — UFOs ficam menores conforme avança; armas progressivas, todas atiram OVOS
 // spawnDist/spawnH: opcional override; sem isso usa default longe-e-alto
 const WAVES = [
-  { count: 4,  speed: 1.0, beamTime: 7.5, interval: 1.7,  weapon: 'hands',     label: 'OVOS NA MÃO', bossHp: 0,  ufoScale: 1.7,  spawnDist: 3.5, spawnDistRand: 2, spawnH: 3.0, spawnHRand: 1.0, spawnFront: true },
+  { count: 4,  speed: 1.0, beamTime: 7.5, interval: 1.7,  weapon: 'hands',     label: 'OVOS NA MÃO', bossHp: 0,  ufoScale: 1.7,  spawnDist: 3, spawnDistRand: 3, spawnH: 14, spawnHRand: 4, spawnFront: true, descendY: 2.5 },
   { count: 5,  speed: 1.6, beamTime: 6.0, interval: 1.4,  weapon: 'slingshot', label: 'ESTILINGUE',  bossHp: 3,  ufoScale: 1.45 },
   { count: 7,  speed: 1.9, beamTime: 5.5, interval: 1.0,  weapon: 'crossbow',  label: 'BESTA',       bossHp: 5,  ufoScale: 1.25 },
   { count: 11, speed: 2.2, beamTime: 5.0, interval: 0.75, weapon: 'shotgun',   label: 'ESCOPETA',    bossHp: 7,  ufoScale: 1.05 },
@@ -646,6 +646,15 @@ function scareChicken(c, fromPos) {
 }
 
 function pickChickenTarget() {
+  // Wave 0 (hands): galinhas ficam perto do player pra UFOs também ficarem perto
+  const w = WAVES[currentWave];
+  if (w && w.weapon === 'hands') {
+    return new THREE.Vector3(
+      (Math.random() - 0.5) * 5,        // -2.5 a +2.5
+      0,
+      2 + Math.random() * 3.5            // 2 a 5.5m do player
+    );
+  }
   return new THREE.Vector3(
     (Math.random() - 0.5) * (YARD_HALF_X * 2 - 2),
     0,
@@ -1883,6 +1892,23 @@ function startWave(idx) {
   state = 'wave_intro';
   stateT = 0;
   const w = WAVES[idx];
+  // Wave 0: reposiciona galinhas perto do player pra UFOs descerem perto
+  if (w.weapon === 'hands') {
+    const closePositions = [
+      { x: -2.6, z: 3.0 }, { x: 2.0, z: 3.5 }, { x: 0, z: 4.0 }, { x: -1.0, z: 5.2 }, { x: 1.6, z: 4.5 }
+    ];
+    let p = 0;
+    for (const c of chickens) {
+      if (c.state === 'gone') continue;
+      if (p < closePositions.length) {
+        c.group.position.set(closePositions[p].x, 0, closePositions[p].z);
+        c.state = 'pecking';
+        c.statePhase = 1.0 + Math.random() * 1.5;
+        c.pecker = 0;
+        p++;
+      }
+    }
+  }
   showWaveBanner('WAVE ' + (idx + 1), idx === WAVES.length - 1 ? 'WAVE FINAL' : 'PREPARE-SE', w.label);
   playWaveStart();
   setTimeout(() => playWeaponPickup(), 600);
@@ -1898,29 +1924,19 @@ function spawnUfoForWave() {
   if (aliveChickens.length === 0) return;
   const target = aliveChickens[Math.floor(Math.random() * aliveChickens.length)];
   const u = makeUfo(w.ufoScale || 1);
-  // Wave 0 (hands): spawn ALTO no céu, depois desce verticalmente até posição close-low
-  if (w.weapon === 'hands') {
-    const x = (Math.random() - 0.5) * 3;            // -1.5 a +1.5
-    const z = 2.0 + Math.random() * 2.0;            // 2-4m do player
-    const targetY = 1.8 + Math.random() * 0.8;      // posição final na altura dos olhos
-    u.group.position.set(x, 14 + Math.random() * 4, z);  // spawn alto no céu (14-18m)
-    // Override do alvo de descida: desce verticalmente até (mesmo x/z, targetY)
-    u.descendOverride = new THREE.Vector3(x, targetY, z);
-  } else {
-    const baseDist = w.spawnDist != null ? w.spawnDist : 18;
-    const distRand = w.spawnDistRand != null ? w.spawnDistRand : 8;
-    const baseH    = w.spawnH    != null ? w.spawnH    : 16;
-    const hRand    = w.spawnHRand != null ? w.spawnHRand : 8;
-    const angle = w.spawnFront
-      ? -Math.PI/2 + Math.random() * Math.PI
-      : Math.random() * Math.PI * 2;
-    const dist = baseDist + Math.random() * distRand;
-    u.group.position.set(
-      target.group.position.x + Math.cos(angle) * dist,
-      baseH + Math.random() * hRand,
-      target.group.position.z + Math.sin(angle) * dist
-    );
-  }
+  const baseDist = w.spawnDist != null ? w.spawnDist : 18;
+  const distRand = w.spawnDistRand != null ? w.spawnDistRand : 8;
+  const baseH    = w.spawnH    != null ? w.spawnH    : 16;
+  const hRand    = w.spawnHRand != null ? w.spawnHRand : 8;
+  const angle = w.spawnFront
+    ? -Math.PI/2 + Math.random() * Math.PI
+    : Math.random() * Math.PI * 2;
+  const dist = baseDist + Math.random() * distRand;
+  u.group.position.set(
+    target.group.position.x + Math.cos(angle) * dist,
+    baseH + Math.random() * hRand,
+    target.group.position.z + Math.sin(angle) * dist
+  );
   scene.add(u.group);
   ufos.push({
     ...u,
@@ -1934,7 +1950,8 @@ function spawnUfoForWave() {
     deadVel: new THREE.Vector3(),
     deadT: 0,
     spinAxis: new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize(),
-    hp: 1, maxHp: 1
+    hp: 1, maxHp: 1,
+    descendY: w.descendY != null ? w.descendY : 4
   });
   waveSpawnedCount++;
 }
@@ -2800,37 +2817,22 @@ renderer.setAnimationLoop(() => {
           ufos.splice(i, 1); scene.remove(u.group); continue;
         }
       }
-      // Se UFO tem descendOverride (wave 0), desce pra essa posição fixa em vez do chicken
-      const targetPos = u.descendOverride
-        ? u.descendOverride
-        : new THREE.Vector3(target.group.position.x, u.isBoss ? 5.5 : 4, target.group.position.z);
+      // descendY define altura que UFO para acima do chicken pra começar o beam
+      const descendH = u.isBoss ? 5.5 : (u.descendY != null ? u.descendY : 4);
+      const targetPos = new THREE.Vector3(target.group.position.x, descendH, target.group.position.z);
       const dir = targetPos.clone().sub(u.group.position);
       const dist = dir.length();
       if (dist < 0.3) {
-        if (u.descendOverride) {
-          // Wave 0: hover sem beam — UFO fica plantada esperando ser abatida
-          u.state = 'hovering';
-          u.hoverTime = 0;
-          u.escapeAfter = u.beamTime;
-        } else {
-          u.state = 'beaming';
-          u.beam.visible = true;
-          u.beamElapsed = 0;
-          if (target.state === 'wandering' || target.state === 'pecking') {
-            target.state = 'abducting';
-          }
-          playBeamStart();
+        u.state = 'beaming';
+        u.beam.visible = true;
+        u.beamElapsed = 0;
+        if (target.state === 'wandering' || target.state === 'pecking') {
+          target.state = 'abducting';
         }
+        playBeamStart();
       } else {
         dir.normalize();
         u.group.position.addScaledVector(dir, u.speed * dt);
-      }
-    } else if (u.state === 'hovering') {
-      // Wave 0: paira ameaçando, depois foge se não morrer
-      u.group.position.y += Math.sin(nowMs * 0.005 + u.bobPhase) * 0.01;
-      u.hoverTime += dt;
-      if (u.hoverTime > u.escapeAfter) {
-        u.state = 'escaping';
       }
     } else if (u.state === 'beaming') {
       u.group.position.y += Math.sin(nowMs * 0.005 + u.bobPhase) * 0.01;
