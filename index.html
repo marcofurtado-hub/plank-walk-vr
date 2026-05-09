@@ -1205,9 +1205,26 @@ function getRightControllerOrigin() {
 }
 
 const MAX_PROJECTILES = 220;
+// Posição local do bocal de cada arma (em coords do weapon group)
+const WEAPON_MUZZLE = {
+  slingshot: new THREE.Vector3(0, 0.165, 0),
+  crossbow:  new THREE.Vector3(0, 0.020, -0.36),
+  shotgun:   new THREE.Vector3(0, 0.018, -0.36),
+  gatling:   new THREE.Vector3(0, 0, -0.48),
+  laser:     new THREE.Vector3(0, 0, -0.34),
+  hands:     new THREE.Vector3(0, 0, 0),
+};
+function getMuzzleWorld() {
+  const grp = allWeaponGroups[activeWeapon];
+  if (!grp) return getRightControllerOrigin();
+  const local = (WEAPON_MUZZLE[activeWeapon] || new THREE.Vector3()).clone();
+  grp.localToWorld(local);
+  return local;
+}
+
 function fireBullet(speed, damage, spreadRad = 0, scale = 1, flashColor = 0xffd040) {
   if (projectiles.length > MAX_PROJECTILES) return;
-  const origin = getRightControllerOrigin();
+  const origin = getMuzzleWorld();        // bocal real da arma, não centro
   let fwd = getRightControllerForward();
   if (spreadRad > 0) {
     const r1 = (Math.random() - 0.5) * spreadRad;
@@ -1216,7 +1233,6 @@ function fireBullet(speed, damage, spreadRad = 0, scale = 1, flashColor = 0xffd0
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,-1), fwd.clone()));
     fwd.add(right.multiplyScalar(r1)).add(up.multiplyScalar(r2)).normalize();
   }
-  origin.addScaledVector(fwd, 0.25);
   const proj = makeBulletMesh();
   // Eggs always egg-white (no per-weapon color tinting on the projectile itself)
   proj.scale.setScalar(scale);
