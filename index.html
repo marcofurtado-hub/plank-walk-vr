@@ -647,7 +647,8 @@ function scareChicken(c, fromPos) {
 
 function pickChickenTarget() {
   // Wave 0 (hands): galinhas ficam perto do player pra UFOs também ficarem perto
-  const w = WAVES[currentWave];
+  let w = null;
+  try { w = WAVES[currentWave]; } catch (e) { /* defensive: TDZ se chamado antes da declaração */ }
   if (w && w.weapon === 'hands') {
     return new THREE.Vector3(
       (Math.random() - 0.5) * 5,        // -2.5 a +2.5
@@ -1871,7 +1872,8 @@ function pulseController(ctrl, intensity, duration) {
 // =============================================================================
 let state = 'idle';
 let stateT = 0;
-let currentWave = 0;
+// var (não let) pra hoistar — usado em pickChickenTarget que roda no spawn inicial das galinhas
+var currentWave = 0;
 let waveSpawnedCount = 0;
 let bossSpawned = false;
 let lastUfoSpawnT = 0;
