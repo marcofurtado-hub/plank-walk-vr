@@ -1719,33 +1719,25 @@ function spawnDebris(pos, count) {
   }
 }
 
-// Splat unificado de ovo frito — mesma cara no chão e no ar (UFO hit), some em ~1s
-function spawnEggBurst(pos, onGround) {
+// Splat de OVO FRITO no chão — clara plana + gema centro + bolinhas, ~1s, alto o suficiente
+function spawnFriedEggSplat(pos) {
   if (debris.length > MAX_DEBRIS - 8) return;
   playEggSplat();
-  // Centro do splat: no chão se onGround, na posição do hit caso contrário
-  const cx = pos.x, cy = onGround ? 0 : pos.y, cz = pos.z;
-  // CLARA — disco branco
+  // CLARA — disco branco bem acima do polígono da terra (y=0.05) pra não z-fightar com a grama
   const claraR = 0.18 + Math.random() * 0.10;
   const clara = new THREE.Mesh(
     new THREE.CircleGeometry(claraR, 12),
     new THREE.MeshLambertMaterial({color:0xfdf8e8, side:THREE.DoubleSide})
   );
+  clara.rotation.x = -Math.PI/2;
+  clara.rotation.z = Math.random() * Math.PI * 2;
   clara.scale.set(0.85 + Math.random()*0.35, 1, 0.85 + Math.random()*0.35);
-  if (onGround) {
-    clara.rotation.x = -Math.PI/2;
-    clara.rotation.z = Math.random() * Math.PI * 2;
-    clara.position.set(cx, 0.015, cz);
-  } else {
-    // Em pleno ar — vira pra câmera pra silhueta de ovo aparecer
-    clara.position.set(cx, cy, cz);
-    clara.lookAt(camera.getWorldPosition(new THREE.Vector3()));
-  }
+  clara.position.set(pos.x, 0.05, pos.z);
   clara.userData.staticSplat = true;
   clara.userData.life = 0;
   clara.userData.maxLife = 1.0;
   scene.add(clara); debris.push(clara);
-  // GEMA — esfera amarela domada
+  // GEMA — domada acima da clara
   const yolkR = claraR * (0.36 + Math.random() * 0.08);
   const yolk = new THREE.Mesh(
     new THREE.SphereGeometry(yolkR, 8, 6),
@@ -1754,12 +1746,12 @@ function spawnEggBurst(pos, onGround) {
   yolk.scale.set(1, 0.5, 1);
   const offX = (Math.random() - 0.5) * claraR * 0.35;
   const offZ = (Math.random() - 0.5) * claraR * 0.35;
-  yolk.position.set(cx + offX, onGround ? 0.025 : cy, cz + offZ);
+  yolk.position.set(pos.x + offX, 0.07, pos.z + offZ);
   yolk.userData.staticSplat = true;
   yolk.userData.life = 0;
   yolk.userData.maxLife = 1.0;
   scene.add(yolk); debris.push(yolk);
-  // BOLINHAS — drops em volta
+  // BOLINHAS — drops em volta, sentadas no chão
   for (let k = 0; k < 5; k++) {
     const isYellow = Math.random() < 0.3;
     const r = 0.016 + Math.random() * 0.010;
@@ -1767,17 +1759,56 @@ function spawnEggBurst(pos, onGround) {
       new THREE.SphereGeometry(r, 5, 4),
       new THREE.MeshLambertMaterial({color: isYellow ? 0xffd048 : 0xfdf8e8})
     );
-    if (onGround) drop.scale.set(1, 0.55, 1);
+    drop.scale.set(1, 0.55, 1);
     const phi = Math.random() * Math.PI * 2;
     const dist = claraR * (0.55 + Math.random() * 0.55);
-    drop.position.set(
-      cx + Math.cos(phi) * dist,
-      onGround ? 0.02 : cy + (Math.random()-0.5) * 0.08,
-      cz + Math.sin(phi) * dist
-    );
+    drop.position.set(pos.x + Math.cos(phi) * dist, 0.06, pos.z + Math.sin(phi) * dist);
     drop.userData.staticSplat = true;
     drop.userData.life = 0;
     drop.userData.maxLife = 0.9;
+    scene.add(drop); debris.push(drop);
+  }
+}
+
+// Splat aéreo (UFO hit) — ovo EXPLODE com pedaços voando + gravidade, ~1s
+function spawnEggSplat(pos) {
+  if (debris.length > MAX_DEBRIS - 8) return;
+  playEggSplat();
+  // GEMAS — 2 esferas amarelas voando pra fora (em direções diferentes)
+  const yolkMat = new THREE.MeshLambertMaterial({color:0xffc628, emissive:0x402000});
+  for (let k = 0; k < 2; k++) {
+    const r = 0.045 + Math.random() * 0.020;
+    const yolk = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), yolkMat);
+    yolk.scale.set(1, 0.6, 1);
+    yolk.position.copy(pos);
+    const phi = Math.random() * Math.PI * 2;
+    const sp = 1.5 + Math.random() * 1.5;
+    yolk.userData.vel = new THREE.Vector3(Math.cos(phi)*sp, 0.5 + Math.random()*0.6, Math.sin(phi)*sp);
+    yolk.userData.rot = new THREE.Vector3(Math.random()*4-2, Math.random()*4-2, Math.random()*4-2);
+    yolk.userData.life = 0;
+    yolk.userData.maxLife = 1.0;
+    scene.add(yolk); debris.push(yolk);
+  }
+  // BOLINHAS — 6 pedaços brancos e amarelos voando em todas direções
+  for (let k = 0; k < 6; k++) {
+    const isYellow = Math.random() < 0.35;
+    const r = 0.018 + Math.random() * 0.012;
+    const drop = new THREE.Mesh(
+      new THREE.SphereGeometry(r, 5, 4),
+      new THREE.MeshLambertMaterial({color: isYellow ? 0xffd048 : 0xfdf8e8})
+    );
+    drop.position.copy(pos);
+    const phi = Math.random() * Math.PI * 2;
+    const theta = Math.random() * Math.PI * 0.65;
+    const sp = 2.5 + Math.random() * 2.0;
+    drop.userData.vel = new THREE.Vector3(
+      Math.sin(theta) * Math.cos(phi) * sp,
+      Math.cos(theta) * sp * 0.8 + 0.4,
+      Math.sin(theta) * Math.sin(phi) * sp
+    );
+    drop.userData.rot = new THREE.Vector3(Math.random()*6-3, Math.random()*6-3, Math.random()*6-3);
+    drop.userData.life = 0;
+    drop.userData.maxLife = 1.0;
     scene.add(drop); debris.push(drop);
   }
 }
@@ -2908,7 +2939,7 @@ renderer.setAnimationLoop(() => {
       if (hitDist < r) {
         damageUfo(u, p.userData.damage);
         if (p.userData.isEgg && debris.length < MAX_DEBRIS) {
-          spawnEggBurst(p.position, false);
+          spawnEggSplat(p.position);
         }
         scene.remove(p);
         projectiles.splice(i, 1);
@@ -2941,7 +2972,7 @@ renderer.setAnimationLoop(() => {
           if (d < 1.6) scareChicken(ck, p.position);
         }
         if (p.userData.isEgg) {
-          spawnEggBurst(new THREE.Vector3(p.position.x, 0, p.position.z), true);
+          spawnFriedEggSplat(new THREE.Vector3(p.position.x, 0, p.position.z));
         }
         scene.remove(p);
         projectiles.splice(i, 1);
@@ -2982,7 +3013,7 @@ renderer.setAnimationLoop(() => {
         if (p.userData.bounceCount > 2 || speed < 1.4) {
           // Splat final
           if (p.userData.isEgg && debris.length < MAX_DEBRIS) {
-            spawnEggBurst(p.position, false);
+            spawnEggSplat(p.position);
           }
           scene.remove(p);
           projectiles.splice(i, 1);
@@ -3075,7 +3106,8 @@ renderer.setAnimationLoop(() => {
       d.rotation.y += d.userData.rot.y * dt;
       d.rotation.z += d.userData.rot.z * dt;
       d.userData.life += dt;
-      if (d.position.y <= 0 || d.userData.life > 2.5) { scene.remove(d); debris.splice(i, 1); }
+      const maxL = d.userData.maxLife != null ? d.userData.maxLife : 2.5;
+      if (d.position.y <= 0 || d.userData.life > maxL) { scene.remove(d); debris.splice(i, 1); }
     }
   }
 
