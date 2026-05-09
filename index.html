@@ -1772,8 +1772,21 @@ function spawnFriedEggSplat(pos) {
 
 // Splat aéreo (UFO hit) — ovo EXPLODE com pedaços voando + gravidade, ~1s
 function spawnEggSplat(pos) {
-  if (debris.length > MAX_DEBRIS - 8) return;
+  if (debris.length > MAX_DEBRIS - 9) return;
   playEggSplat();
+  // CLARA — disco branco achatado virado pra câmera, dá o "ovo" do splat
+  const claraR = 0.16 + Math.random() * 0.08;
+  const clara = new THREE.Mesh(
+    new THREE.CircleGeometry(claraR, 12),
+    new THREE.MeshLambertMaterial({color:0xfdf8e8, side:THREE.DoubleSide})
+  );
+  clara.scale.set(0.85 + Math.random()*0.35, 1, 0.85 + Math.random()*0.35);
+  clara.position.copy(pos);
+  clara.lookAt(camera.getWorldPosition(new THREE.Vector3()));
+  clara.userData.staticSplat = true;
+  clara.userData.life = 0;
+  clara.userData.maxLife = 0.7;
+  scene.add(clara); debris.push(clara);
   // GEMAS — 2 esferas amarelas voando pra fora (em direções diferentes)
   const yolkMat = new THREE.MeshLambertMaterial({color:0xffc628, emissive:0x402000});
   for (let k = 0; k < 2; k++) {
