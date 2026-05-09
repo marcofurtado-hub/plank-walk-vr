@@ -1717,37 +1717,31 @@ function spawnDebris(pos, count) {
   }
 }
 
-// Splat de ovo mole — gema achatada saturada + fios de clara + casca branca
+// Splat de ovo — usado em UFOs (em pleno ar): mantém formato 3D mole
 function spawnEggSplat(pos) {
   if (debris.length > MAX_DEBRIS - 12) return;
   playEggSplat();
-  // GEMAS — esferas achatadas amarelo vivo (pinta saturada com emissive)
   const yolkMat = new THREE.MeshLambertMaterial({color:0xffc628, emissive:0x402000});
   for (let k = 0; k < 3; k++) {
     const r = k === 0 ? 0.075 : 0.038 + Math.random() * 0.018;
     const yolk = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), yolkMat);
-    yolk.scale.set(1.0, 0.45, 1.0);  // achatada como gema quebrada
+    yolk.scale.set(1.0, 0.45, 1.0);
     yolk.position.copy(pos);
-    if (k === 0) {
-      yolk.userData.vel = new THREE.Vector3((Math.random()-0.5)*0.6, 0.3 + Math.random()*0.5, (Math.random()-0.5)*0.6);
-    } else {
-      const phi = Math.random() * Math.PI * 2;
-      const sp = 1.3 + Math.random() * 1.0;
-      yolk.userData.vel = new THREE.Vector3(Math.cos(phi)*sp, 0.5 + Math.random()*0.6, Math.sin(phi)*sp);
-    }
-    yolk.userData.rot = new THREE.Vector3(0, Math.random()*1.5, 0); // gira pouco, mantém achatada
+    const phi = Math.random() * Math.PI * 2;
+    const sp = k === 0 ? 0.5 : 1.3 + Math.random() * 1.0;
+    yolk.userData.vel = new THREE.Vector3(Math.cos(phi)*sp, 0.4 + Math.random()*0.5, Math.sin(phi)*sp);
+    yolk.userData.rot = new THREE.Vector3(0, Math.random()*1.5, 0);
     yolk.userData.life = 0;
     scene.add(yolk); debris.push(yolk);
   }
-  // CLARA — fios elongados translúcidos (cilindros finos rotativos)
   const claraMat = new THREE.MeshLambertMaterial({color:0xfff4d0, transparent:true, opacity:0.78});
-  for (let k = 0; k < 6; k++) {
-    const len = 0.10 + Math.random() * 0.10;
+  for (let k = 0; k < 5; k++) {
+    const len = 0.10 + Math.random() * 0.08;
     const piece = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.008, len, 5), claraMat);
     piece.position.copy(pos);
     const phi = Math.random() * Math.PI * 2;
     const theta = Math.random() * Math.PI * 0.6;
-    const sp = 2.2 + Math.random() * 1.8;
+    const sp = 2.0 + Math.random() * 1.5;
     piece.userData.vel = new THREE.Vector3(
       Math.sin(theta) * Math.cos(phi) * sp,
       Math.cos(theta) * sp * 0.7 + 0.3,
@@ -1755,25 +1749,79 @@ function spawnEggSplat(pos) {
     );
     piece.userData.rot = new THREE.Vector3(Math.random()*5-2.5, Math.random()*5-2.5, Math.random()*5-2.5);
     piece.userData.life = 0;
-    // Orientação inicial alinhada com vel pra parecer escorrendo
     const dir = piece.userData.vel.clone().normalize();
     const q = new THREE.Quaternion();
     q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
     piece.quaternion.copy(q);
     scene.add(piece); debris.push(piece);
   }
-  // CASCA — pedacinhos brancos (cubos pequenos quebrados)
-  const shellMat = new THREE.MeshLambertMaterial({color:0xfdf6e0});
-  for (let k = 0; k < 4; k++) {
-    const s = 0.014 + Math.random() * 0.008;
-    const shell = new THREE.Mesh(new THREE.BoxGeometry(s, s * 0.7, s * 1.2), shellMat);
-    shell.position.copy(pos);
+}
+
+// Splat de OVO FRITO no chão — círculo branco com gema amarela no centro + bolinhas
+function spawnFriedEggSplat(pos) {
+  if (debris.length > MAX_DEBRIS - 12) return;
+  playEggSplat();
+  // CLARA — disco branco achatado no chão (formato irregular)
+  const claraR = 0.18 + Math.random() * 0.12;
+  const clara = new THREE.Mesh(
+    new THREE.CircleGeometry(claraR, 14),
+    new THREE.MeshLambertMaterial({color:0xfdf8e8, side:THREE.DoubleSide, transparent:true, opacity:1})
+  );
+  clara.rotation.x = -Math.PI/2;                                              // deitada no chão
+  clara.position.set(pos.x, 0.015, pos.z);
+  // Pequenas variações no formato — escala não-uniforme + rotação
+  const sx = 0.85 + Math.random() * 0.35;
+  const sz = 0.85 + Math.random() * 0.35;
+  clara.scale.set(sx, 1, sz);
+  clara.rotation.z = Math.random() * Math.PI * 2;
+  clara.userData.staticSplat = true;
+  clara.userData.life = 0;
+  clara.userData.maxLife = 5.0;
+  scene.add(clara); debris.push(clara);
+  // GEMA — esfera amarela achatada no centro (com leve offset pra não ser sempre simétrico)
+  const yolkR = claraR * (0.34 + Math.random() * 0.10);
+  const yolk = new THREE.Mesh(
+    new THREE.SphereGeometry(yolkR, 10, 8),
+    new THREE.MeshLambertMaterial({color:0xffc628, emissive:0x402000})
+  );
+  yolk.scale.set(1, 0.5, 1);                                                  // domada (calota)
+  const offX = (Math.random() - 0.5) * claraR * 0.35;
+  const offZ = (Math.random() - 0.5) * claraR * 0.35;
+  yolk.position.set(pos.x + offX, 0.025, pos.z + offZ);
+  yolk.userData.staticSplat = true;
+  yolk.userData.life = 0;
+  yolk.userData.maxLife = 5.0;
+  scene.add(yolk); debris.push(yolk);
+  // BOLINHAS — pequenas gotas variadas espalhadas em volta (algumas brancas, algumas amarelas)
+  for (let k = 0; k < 7; k++) {
+    const isYellow = Math.random() < 0.3;
+    const r = 0.018 + Math.random() * 0.014;
+    const drop = new THREE.Mesh(
+      new THREE.SphereGeometry(r, 6, 5),
+      new THREE.MeshLambertMaterial({color: isYellow ? 0xffd048 : 0xfdf8e8})
+    );
+    drop.scale.set(1, 0.55, 1);
     const phi = Math.random() * Math.PI * 2;
-    const sp = 2.5 + Math.random() * 1.5;
-    shell.userData.vel = new THREE.Vector3(Math.cos(phi)*sp, 0.6 + Math.random()*0.9, Math.sin(phi)*sp);
-    shell.userData.rot = new THREE.Vector3(Math.random()*8-4, Math.random()*8-4, Math.random()*8-4);
-    shell.userData.life = 0;
-    scene.add(shell); debris.push(shell);
+    const dist = claraR * (0.5 + Math.random() * 0.7);  // dentro/perto do disco
+    drop.position.set(pos.x + Math.cos(phi) * dist, 0.02, pos.z + Math.sin(phi) * dist);
+    drop.userData.staticSplat = true;
+    drop.userData.life = 0;
+    drop.userData.maxLife = 4.5;
+    scene.add(drop); debris.push(drop);
+  }
+  // SPLASH inicial — 4 gotas voando pra dar feedback de impacto
+  for (let k = 0; k < 4; k++) {
+    const fly = new THREE.Mesh(
+      new THREE.SphereGeometry(0.013 + Math.random() * 0.008, 5, 4),
+      new THREE.MeshLambertMaterial({color: Math.random() < 0.4 ? 0xffd048 : 0xfdf8e8})
+    );
+    fly.position.copy(pos);
+    const phi = Math.random() * Math.PI * 2;
+    const sp = 1.5 + Math.random() * 1.5;
+    fly.userData.vel = new THREE.Vector3(Math.cos(phi)*sp, 0.6 + Math.random()*0.7, Math.sin(phi)*sp);
+    fly.userData.rot = new THREE.Vector3(0, 0, 0);
+    fly.userData.life = 0;
+    scene.add(fly); debris.push(fly);
   }
 }
 
@@ -2920,26 +2968,26 @@ renderer.setAnimationLoop(() => {
         p.quaternion.copy(q);
       }
     }
-    // BOUNCE — todos os projéteis recocheteiam: chão, parede da casa, cercas
+    // BOUNCE — projéteis quebram no chão (splat de ovo frito) e quicam só em paredes/cercas
     if (!removed) {
       const v = p.userData.vel;
       let bounced = false;
-      let surfacePos = null; // ponto de impacto (pra splat e assustar galinhas)
+      let surfacePos = null;
 
-      // CHÃO (qualquer projétil descendo abaixo de y=0.04)
+      // CHÃO — ovo QUEBRA com splat de ovo frito (sem mais quicar)
       if (p.position.y <= 0.04 && v.y < 0) {
-        p.position.y = 0.04;
-        v.y = -v.y * 0.45;
-        v.x *= 0.7;
-        v.z *= 0.7;
-        bounced = true;
-        surfacePos = p.position.clone();
-        // Assusta galinhas próximas só pelo impacto no chão
+        // Assusta galinhas próximas
         for (const ck of chickens) {
           if (ck.state === 'gone' || ck.state === 'abducting' || ck.state === 'scared') continue;
           const d = Math.hypot(ck.group.position.x - p.position.x, ck.group.position.z - p.position.z);
           if (d < 1.6) scareChicken(ck, p.position);
         }
+        if (p.userData.isEgg) {
+          spawnFriedEggSplat(new THREE.Vector3(p.position.x, 0, p.position.z));
+        }
+        scene.remove(p);
+        projectiles.splice(i, 1);
+        removed = true;
       }
       // PAREDE DA CASA (z = -3.55, dentro de x:[-4,4] y:[0,4])
       else if (p.position.z < -3.55 && prevPos.z >= -3.55 &&
@@ -3032,9 +3080,21 @@ renderer.setAnimationLoop(() => {
     }
   }
 
-  // === DEBRIS / SMOKE / SPARKS ===
+  // === DEBRIS / SMOKE / SPARKS / STATIC SPLAT ===
   for (let i = debris.length - 1; i >= 0; i--) {
     const d = debris[i];
+    if (d.userData.staticSplat) {
+      // Splat de ovo frito no chão — não cai, só desbota
+      d.userData.life += dt;
+      const maxL = d.userData.maxLife != null ? d.userData.maxLife : 5;
+      if (d.userData.life > maxL) {
+        scene.remove(d); debris.splice(i, 1);
+      } else if (d.userData.life > maxL - 1.0) {
+        if (!d.material.transparent) d.material.transparent = true;
+        d.material.opacity = Math.max(0, (maxL - d.userData.life));
+      }
+      continue;
+    }
     if (d.userData.isSmoke) {
       d.userData.life += dt;
       d.position.addScaledVector(d.userData.vel, dt);
